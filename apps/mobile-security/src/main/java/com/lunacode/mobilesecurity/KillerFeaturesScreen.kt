@@ -68,7 +68,8 @@ data class KillerChangeUi(
 data class KillerHistoryUi(
     val scannedAt: Long,
     val findingCount: Int,
-    val changeCount: Int
+    val changeCount: Int,
+    val integrityStatus: String
 )
 
 @Composable
@@ -77,7 +78,8 @@ fun KillerFeaturesScreen(
     firstBaseline: Boolean,
     hasReport: Boolean,
     history: List<KillerHistoryUi>,
-    postureReport: SecurityPostureReport?
+    postureReport: SecurityPostureReport?,
+    integrityStatus: String
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -350,7 +352,35 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "07 · APK X-RAY",
+                "07 · FORENSIC SEAL",
+                "Криптографическая целостность истории",
+                "Каждый новый отчёт подписывается HMAC-ключом Android Keystore и связывается с предыдущим. Это помогает обнаружить изменение содержимого или нарушение порядка записей в локальной истории."
+            )
+            EvidenceSealCard(integrityStatus)
+            history.forEach { item ->
+                val label = when (item.integrityStatus) {
+                    "VERIFIED" -> "HMAC VERIFIED"
+                    "FAILED" -> "HMAC FAILED"
+                    "LEGACY" -> "LEGACY · БЕЗ ПЕЧАТИ"
+                    "UNSEALED" -> "UNSEALED"
+                    else -> "UNVERIFIABLE"
+                }
+                FeatureCard(
+                    label,
+                    java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.scannedAt)),
+                    "Сигналов аудита: ${item.findingCount} · Изменений: ${item.changeCount}",
+                    when (item.integrityStatus) {
+                        "VERIFIED" -> KillerGreen
+                        "FAILED" -> KillerRed
+                        else -> KillerMuted
+                    }
+                )
+            }
+        }
+
+        item {
+            FeatureHeader(
+                "08 · APK X-RAY",
                 "Рентген APK до установки",
                 "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256, отпечатки сертификатов и ограниченный набор DEX API-сигналов. Файл не устанавливается."
             )
@@ -366,7 +396,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "08 · LINK MIRROR",
+                "09 · LINK MIRROR",
                 "Проверка ссылки без интернета",
                 "Анализирует структуру адреса: HTTP, маскировку через user-info, Punycode, короткие ссылки, IP вместо домена и нестандартные порты. Не открывает ссылку."
             )
@@ -403,7 +433,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "09 · PURA GUARD",
+                "10 · PURA GUARD",
                 "Режим устойчивой защиты Huawei",
                 "Профиль настройки фоновой работы для Pura 70. Он не обходит ограничения батареи и не включает скрытые разрешения — только открывает системные экраны и даёт проверяемые шаги."
             )
