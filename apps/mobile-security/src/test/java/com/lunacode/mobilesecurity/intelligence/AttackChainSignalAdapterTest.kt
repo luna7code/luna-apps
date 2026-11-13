@@ -29,7 +29,7 @@ class AttackChainSignalAdapterTest {
         val chains = AttackChainSignalAdapter.detect(
             findings = listOf(
                 AuditFinding("app-op-camera-com.example.surveillance", "Camera", "Allowed", "MEDIUM", "com.example.surveillance"),
-                AuditFinding("app-op-record_audio-com.example.surveillance", "Microphone", "Allowed", "MEDIUM", "com.example.surveillance")
+                AuditFinding("app-op-record-audio-com.example.surveillance", "Microphone", "Allowed", "MEDIUM", "com.example.surveillance")
             ),
             changes = listOf(SentinelChange("installed", "Installed", "New app", "MEDIUM", "com.example.surveillance")),
             observedAtMillis = 26_000L

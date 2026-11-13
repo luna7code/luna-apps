@@ -801,7 +801,7 @@ private fun AttackChainCard(chain: AttackChain) {
             Text(chain.title, color = ProWhite, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(chain.packageName, color = ProMuted, fontSize = 11.sp)
             Text(chain.explanation, color = ProMuted, fontSize = 12.sp)
-            Text("Сила сочетания признаков: ${chain.confidenceScore}/100 · событий: ${chain.signals.size}", color = ProWhite, fontSize = 11.sp)
+            Text("Сила сочетания: ${chain.confidenceScore}/100 · качество источников: ${chain.evidenceQualityScore}/100 · событий: ${chain.signals.size}", color = ProWhite, fontSize = 11.sp)
         }
     }
 }
