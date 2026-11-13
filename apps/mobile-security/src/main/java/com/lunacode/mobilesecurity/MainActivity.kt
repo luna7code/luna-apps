@@ -78,6 +78,13 @@ private data class FindingUi(
     val id: String = "",
     val source: String = ""
 )
+private data class DecodedScanRecord(
+    val record: ScanRecord,
+    val json: JSONObject,
+    val envelope: ReportEnvelope,
+    var integrityStatus: String
+)
+
 private data class ScanReportUi(
     val scannedAt: Long,
     val findings: List<FindingUi>,
