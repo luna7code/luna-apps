@@ -21,9 +21,11 @@ class DailyAuditWorker(
         return try {
             val dao = ProSecDatabase.get(applicationContext).scanDao()
             val cipher = LocalPayloadCipher()
-            val previousStored = dao.latest()?.let { record ->
+            val previousRecord = dao.latest()
+            val previousStored = previousRecord?.let { record ->
                 runCatching { cipher.decrypt(record.encryptedPayload) }.getOrNull()
             }
+            val previousPayloadUnreadable = previousRecord != null && previousStored == null
             val previousEnvelope = previousStored?.let { ReportEnvelopeCodec.decode(it) }
             val previousVerified = previousEnvelope?.let { envelope ->
                 if (!envelope.wrapped || envelope.chainTag == null) {
@@ -51,7 +53,7 @@ class DailyAuditWorker(
 
             val scanner = DeviceAuditScanner(applicationContext)
             val findings = scanner.scan().toMutableList()
-            if (previousEnvelope?.wrapped == true && previousVerified != true) {
+            if (previousPayloadUnreadable || (previousEnvelope?.wrapped == true && previousVerified != true)) {
                 findings += AuditFinding(
                     id = "evidence-chain-invalid-previous",
                     title = "Предыдущая печать истории не подтверждена",
