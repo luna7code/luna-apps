@@ -132,6 +132,10 @@ data class ApkXRayReport(
     val stringScanEntries: Int,
     val stringScanBytes: Long,
     val stringScanTruncated: Boolean,
+    val nativeLibraries: List<NativeLibraryInfo>,
+    val nestedApkEntries: List<String>,
+    val archiveWarnings: List<String>,
+    val archiveTruncated: Boolean,
     val threatIndicators: List<ThreatIndicator>,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
@@ -205,6 +209,7 @@ object ApkXRay {
         val apkDigest = sha256(file)
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
         val stringScan = runCatching { StaticStringIndicatorScanner.scan(file) }.getOrNull()
+        val archiveScan = runCatching { ApkArchiveInspector.inspect(file) }.getOrNull()
         val feedIndicators = ThreatDatabaseStore(context).loadVerified()
             ?.byPackageName?.get(packageName).orEmpty()
         val threatMatches = ThreatIndicatorMatcher.match(
@@ -260,6 +265,19 @@ object ApkXRay {
                 "Достигнут лимит архива или объёма данных. Отсутствие индикаторов в непроверенной части не может быть подтверждено.",
                 "INFO"
             )
+        }
+        archiveScan?.nativeLibraries.orEmpty().forEach { library ->
+            if (library.warnings.isNotEmpty()) risks += ApkRisk(
+                "Native-библиотека: ${library.path}",
+                "ABI: ${library.abi}; ELF: ${library.machineName}. ${library.warnings.joinToString("; ")}. Строковые совпадения не доказывают выполнение соответствующего кода.",
+                "INFO"
+            )
+        }
+        archiveScan?.suspiciousArchiveEntries.orEmpty().forEach { warning ->
+            risks += ApkRisk("Подозрительная структура ZIP", warning, "MEDIUM")
+        }
+        if (archiveScan?.truncated == true) {
+            risks += ApkRisk("Архивный анализ ограничен", "Достигнут лимит числа записей, распакованного размера или размера native-библиотек. Непроверенные части неизвестны.", "INFO")
         }
         if (signers.isEmpty()) {
             risks += ApkRisk("Сертификат подписи не прочитан", "Не удалось извлечь сертификат APK. Сравнение издателя недоступно.", "MEDIUM")
@@ -317,6 +335,10 @@ object ApkXRay {
             stringScanEntries = stringScan?.entriesScanned ?: 0,
             stringScanBytes = stringScan?.bytesScanned ?: 0L,
             stringScanTruncated = stringScan?.truncated ?: true,
+            nativeLibraries = archiveScan?.nativeLibraries.orEmpty(),
+            nestedApkEntries = archiveScan?.nestedApkEntries.orEmpty(),
+            archiveWarnings = archiveScan?.suspiciousArchiveEntries.orEmpty(),
+            archiveTruncated = archiveScan?.truncated ?: true,
             threatIndicators = threatMatches,
             risks = risks,
             fileSizeBytes = file.length()
