@@ -148,3 +148,19 @@ Interpretation is deliberately conservative:
 - Obfuscation, encryption, native code, dynamic URL construction, split APKs, and archive regions beyond limits can hide behavior. Static analysis cannot prove an APK safe.
 
 All inspection remains local. The app does not add INTERNET permission, telemetry, or cloud submission for APK analysis.
+
+## APK X-RAY: native and binary-manifest pass
+
+The archive pass enumerates ZIP entries without extracting them to disk. It enforces limits of 1,200 entries, 256 MiB declared uncompressed aggregate size, 80 native libraries, and 16 MiB per native library. It reports path traversal-style entry names, unusually high compression ratios (>200:1), nested APK candidates, and incomplete scans. Native library headers are inspected as inert bytes for ELF class, byte order, machine architecture, and bounded library-name/dynamic-loader strings. Native code is never loaded or executed.
+
+The binary AndroidManifest reader is a bounded, best-effort parser for the string pool and common start/end element chunks. It extracts package/SDK metadata, declared custom permission protectionLevel attributes, and intent-filter action/category/data fields including autoVerify. Android PackageManager remains the primary authoritative parser for APK package metadata, components, signing certificates, and requested permissions. A malformed or unsupported binary manifest produces parse warnings rather than a clean bill of health.
+
+Important limits:
+- PackageManager exposes package/component metadata but not a complete public representation of each component's intent filters. The additional binary XML reader is best-effort and not a replacement for a full AAPT2/apkanalyzer decode.
+- APK X-RAY currently reports nested .apk entries as split candidates; it does not yet resolve and compare every split's manifest, signing block, and dependency relationship.
+- protectionLevel is extracted for custom <permission> declarations. Protection levels of requested platform permissions require resolution against the relevant Android OS permission registry and are not inferred from the requested name alone.
+- Native library inspection currently reports ELF header/ABI and bounded string hints. It does not parse complete ELF program headers, dynamic symbol tables, relocations, GNU properties, stack flags, or text relocations; those fields are intentionally not guessed.
+- App Link autoVerify is a manifest declaration, not evidence that Android verified the host. No DNS, HTTP, or domain association request is made.
+- Compression ratios and declared ZIP sizes are triage indicators. Archive parsing remains subject to malformed central directories and implementation limits; no archive content is extracted to a filesystem path.
+
+No network permission, telemetry, cloud upload, APK installation, or APK execution is introduced.
