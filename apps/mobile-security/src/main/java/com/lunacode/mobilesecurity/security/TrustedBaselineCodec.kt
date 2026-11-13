@@ -38,5 +38,5 @@ object TrustedBaselineCodec {
     }
 
     private fun baselineMaterial(savedAt: Long, report: String): String =
-        "PROSEC-TRUSTED-BASELINE-1\\n$savedAt\\n$report"
+        "PROSEC-TRUSTED-BASELINE-1\n$savedAt\n$report"
 }
