@@ -57,8 +57,8 @@ private fun SecurityHome() {
             modifier = Modifier.fillMaxSize().padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Text("LUNA", color = LunaMuted, fontSize = 13.sp, letterSpacing = 5.sp)
-            Text("MOBILE SECURITY", color = LunaWhite, fontSize = 27.sp)
+            Text("PRO", color = LunaMuted, fontSize = 13.sp, letterSpacing = 5.sp)
+            Text("SEC", color = LunaWhite, fontSize = 30.sp)
             Text("Защита устройства под контролем", color = LunaMuted)
             Card(
                 modifier = Modifier.fillMaxWidth(),
