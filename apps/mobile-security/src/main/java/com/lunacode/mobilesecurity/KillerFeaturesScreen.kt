@@ -438,7 +438,7 @@ fun KillerFeaturesScreen(
             FeatureHeader(
                 "08 · APK X-RAY",
                 "Рентген APK до установки",
-                "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256, отпечатки сертификатов и ограниченный набор DEX API-сигналов. Файл не устанавливается."
+                "Выберите APK-файл. PRO SEC статически прочитает манифест, exported-компоненты, разрешения, min/target SDK, сертификаты и ротацию ключей, DEX API-ссылки, строки и URL. Архив не устанавливается и не запускается."
             )
             Button(
                 onClick = { apkPicker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) },
@@ -741,6 +741,29 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
                     "ССЫЛКА НА API",
                     signal,
                     "В DEX обнаружена ссылка на эту системную возможность. Легитимные приложения тоже могут её использовать; нужен контекст кода и назначение приложения.",
+                    KillerAmber
+                )
+            }
+        }
+        InfoCard(
+            "Статические строки и URL",
+            "Просмотрено записей: ${report.stringScanEntries} · данных: ${report.stringScanBytes / 1024} KB" +
+                if (report.stringScanTruncated) "\\nАнализ ограничен лимитами архива." else ""
+        )
+        if (report.extractedUrls.isEmpty()) {
+            InfoCard(
+                "URL-строки не найдены",
+                "В проверенных ограниченных записях не обнаружены HTTP(S)-адреса. Обфускация, динамическая сборка URL и непроверенные данные могут скрыть адреса."
+            )
+        } else {
+            InfoCard("Извлечённые URL (${report.extractedUrls.size})", report.extractedUrls.joinToString("\\n"))
+        }
+        if (report.stringFindings.isNotEmpty()) {
+            report.stringFindings.forEach { finding ->
+                FeatureCard(
+                    "СТРОКОВЫЙ ИНДИКАТОР · ${finding.occurrences}",
+                    finding.category,
+                    "Найден токен «${finding.indicator}». Строка может быть неиспользуемой, поэтому это контекстный индикатор, а не доказательство поведения.",
                     KillerAmber
                 )
             }
