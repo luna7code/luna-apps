@@ -69,6 +69,14 @@ class DeviceAuditScanner(private val context: Context) {
             val permissionDigest = MessageDigest.getInstance("SHA-256")
                 .digest(permissionState.toByteArray(Charsets.UTF_8))
                 .joinToString("") { "%02X".format(it) }
+            val installer = runCatching {
+                if (Build.VERSION.SDK_INT >= 30) {
+                    pm.getInstallSourceInfo(packageName).installingPackageName
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getInstallerPackageName(packageName)
+                }
+            }.getOrNull().orEmpty()
 
             appInventory.put(JSONObject().apply {
                 put("packageName", packageName)
@@ -76,6 +84,7 @@ class DeviceAuditScanner(private val context: Context) {
                 put("version", "${info.versionName.orEmpty()}:${versionCode(info)}")
                 put("signerSha256", signer)
                 put("permissionsSha256", permissionDigest)
+                put("installerPackage", installer)
                 put("lastUpdateTime", info.lastUpdateTime)
             })
 
@@ -89,8 +98,24 @@ class DeviceAuditScanner(private val context: Context) {
                 )
             }
 
-            val requested = info.requestedPermissions.orEmpty().toSet()
+            val permissionNames = info.requestedPermissions.orEmpty()
+            val requested = permissionNames.toSet()
             val sensitive = requested.intersect(SENSITIVE_PERMISSIONS)
+            val grantedSensitive = permissionNames.mapIndexedNotNull { index, permission ->
+                val granted = (info.requestedPermissionsFlags
+                    ?.getOrNull(index)
+                    ?.and(PackageInfo.REQUESTED_PERMISSION_GRANTED) ?: 0) != 0
+                permission.takeIf { granted && it in SENSITIVE_PERMISSIONS }
+            }.toSet()
+            if (grantedSensitive.size >= 2 && !systemApp) {
+                findings += AuditFinding(
+                    id = "granted-permissions-$packageName",
+                    title = "Выданы чувствительные разрешения: $label",
+                    detail = "Сейчас отмечены как выданные: ${grantedSensitive.joinToString()}. Проверьте, нужны ли приложению эти возможности.",
+                    severity = "LOW",
+                    source = packageName
+                )
+            }
             if (sensitive.size >= 3 && !systemApp) {
                 findings += AuditFinding(
                     id = "permissions-$packageName",
