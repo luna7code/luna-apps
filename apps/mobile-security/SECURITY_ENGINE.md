@@ -149,18 +149,41 @@ Interpretation is deliberately conservative:
 
 All inspection remains local. The app does not add INTERNET permission, telemetry, or cloud submission for APK analysis.
 
-## APK X-RAY: native and binary-manifest pass
+## APK X-RAY: native, split and binary-manifest status
 
-The archive pass enumerates ZIP entries without extracting them to disk. It enforces limits of 1,200 entries, 256 MiB declared uncompressed aggregate size, 80 native libraries, and 16 MiB per native library. It reports path traversal-style entry names, unusually high compression ratios (>200:1), nested APK candidates, and incomplete scans. Native library headers are inspected as inert bytes for ELF class, byte order, machine architecture, and bounded library-name/dynamic-loader strings. Native code is never loaded or executed.
+The ZIP reader remains inert: it does not extract APK entries to disk, install packages, load shared objects, or execute native code. It caps the archive at 1,200 entries, 256 MiB of declared uncompressed data, 80 native libraries and 16 MiB per native library. It reports unsafe paths, canonical duplicate paths, high compression ratios and bounded-scan truncation. Size accumulation uses subtraction-based limit checks to avoid signed addition overflow.
 
-The binary AndroidManifest reader is a bounded, best-effort parser for the string pool and common start/end element chunks. It extracts package/SDK metadata, declared custom permission protectionLevel attributes, and intent-filter action/category/data fields including autoVerify. Android PackageManager remains the primary authoritative parser for APK package metadata, components, signing certificates, and requested permissions. A malformed or unsupported binary manifest produces parse warnings rather than a clean bill of health.
+### ELF metadata currently parsed
 
-Important limits:
-- PackageManager exposes package/component metadata but not a complete public representation of each component's intent filters. The additional binary XML reader is best-effort and not a replacement for a full AAPT2/apkanalyzer decode.
-- APK X-RAY currently reports nested .apk entries as split candidates; it does not yet resolve and compare every split's manifest, signing block, and dependency relationship.
-- protectionLevel is extracted for custom <permission> declarations. Protection levels of requested platform permissions require resolution against the relevant Android OS permission registry and are not inferred from the requested name alone.
-- Native library inspection currently reports ELF header/ABI and bounded string hints. It does not parse complete ELF program headers, dynamic symbol tables, relocations, GNU properties, stack flags, or text relocations; those fields are intentionally not guessed.
-- App Link autoVerify is a manifest declaration, not evidence that Android verified the host. No DNS, HTTP, or domain association request is made.
-- Compression ratios and declared ZIP sizes are triage indicators. Archive parsing remains subject to malformed central directories and implementation limits; no archive content is extracted to a filesystem path.
+For ELF32 and ELF64, little- and big-endian inputs, the bounded parser reads the ELF header and program-header table (up to 256 entries), maps PT_LOAD virtual addresses to file offsets, and inspects PT_GNU_STACK and PT_DYNAMIC. It extracts bounded DT_NEEDED names, dynamic symbols (up to 80 reported names; symbol-count estimation is used when DT_HASH is unavailable), and text-relocation indicators from DT_TEXTREL / DF_TEXTREL. The report UI shows program-header count, executable-stack state (NX / EXECUTABLE / UNKNOWN), text-relocation state, dependencies and selected dynamic symbols.
 
-No network permission, telemetry, cloud upload, APK installation, or APK execution is introduced.
+Important interpretation limits:
+- Missing PT_GNU_STACK is UNKNOWN, not proof of NX.
+- Dynamic-symbol coverage may be incomplete when GNU hash is used without DT_HASH; the report emits an explicit warning when it estimates symbol count.
+- Text relocation state reflects dynamic tags only. A full relocation-section audit, GNU property notes, symbol version tables and GNU-hash traversal are not implemented yet.
+- String matches and exported symbols are metadata indicators, not proof that code is reachable or executed.
+
+### Split APK status
+
+The archive scanner detects nested .apk entries as split candidates. It does not yet recursively parse every split manifest, prove package/version consistency, inspect split dependencies, or compare signing certificates / signing lineage across base and split APKs. Treat nested APK results as candidates only; split lineage verification remains an open implementation item. The Android package parser is still the source for the selected outer APK's package metadata and signing information.
+
+### Manifest and permissions
+
+The binary AndroidManifest reader extracts package and SDK metadata, custom permission declarations, and common intent-filter action/category/data/autoVerify attributes. Chunk-bound arithmetic now uses Long checks before offset advancement, and the string pool is capped at 20,000 entries. Malformed input produces warnings rather than a clean result.
+
+For requested permissions, APK X-RAY now resolves protectionLevel against the current device's PackageManager permission registry and displays the base class (NORMAL, DANGEROUS, SIGNATURE, legacy SIGNATURE_OR_SYSTEM) plus recognized flags and permission owner package. Permissions absent from the current device registry are explicitly UNRESOLVED; the app does not guess their protection level. Custom <permission> declarations are separately parsed from the candidate manifest.
+
+Intent-filter parsing remains best-effort. It is not a full AAPT2/apkanalyzer resource decode; resource references, all namespace/type encodings, and every Android-version-specific manifest attribute are not guaranteed. App Link autoVerify is only a manifest declaration, not evidence that Android verified the domain.
+
+### Regression corpus and remaining work
+
+JVM tests now include deterministic malformed-ELF byte generation, malformed Binary XML property cases, ZIP-bomb compression-ratio samples, canonical duplicate paths, unsafe paths and corrupt ZIP input. These are deterministic regression/property corpora, not a coverage-guided fuzzing campaign. A future fuzz target should run in a separate host-side harness with time/memory limits and corpus minimization.
+
+Still required for the requested full APK X-RAY scope:
+- split APK package/version/certificate/lineage reconciliation;
+- GNU-hash-based dynamic-symbol enumeration and full relocation-table analysis;
+- Android API-level-specific permission protection-level fixtures, including unresolved and custom permission cases;
+- broader Binary XML corpus from real APKs and API 26–36 manifests;
+- full archive streaming/decompression accounting for every entry, not only entries consumed by specialized scanners.
+
+All APK analysis remains local. No INTERNET permission, telemetry, account, cloud service, APK installation, or APK/native-code execution is introduced.
