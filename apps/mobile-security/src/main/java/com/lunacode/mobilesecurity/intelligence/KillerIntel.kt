@@ -185,7 +185,7 @@ object ApkXRay {
         return ApkXRayReport(
             packageName = packageName,
             versionName = info.versionName.orEmpty(),
-            versionCode = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong(),
+            versionCode = readVersionCode(info),
             targetSdk = app.targetSdkVersion,
             minSdk = app.minSdkVersion,
             apkSha256 = sha256(file),
@@ -196,6 +196,10 @@ object ApkXRay {
             fileSizeBytes = file.length()
         )
     }
+
+    @Suppress("DEPRECATION")
+    private fun readVersionCode(info: PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     @Suppress("DEPRECATION")
     private fun getSigners(info: PackageInfo): List<android.content.pm.Signature> {
