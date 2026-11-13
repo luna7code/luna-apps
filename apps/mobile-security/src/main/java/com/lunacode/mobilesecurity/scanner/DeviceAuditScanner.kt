@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import com.lunacode.mobilesecurity.intelligence.DeviceIntegrityInspector
+import com.lunacode.mobilesecurity.intelligence.InputTrustInspector
 import com.lunacode.mobilesecurity.intelligence.ThreatIndicatorMatcher
 import com.lunacode.mobilesecurity.intelligence.VerifiedThreatDatabase
 import org.json.JSONArray
@@ -37,6 +38,7 @@ class DeviceAuditScanner(
         scanInstalledApps(findings)
         scanAccessibility(findings)
         scanNotificationListeners(findings)
+        scanInputMethods(findings)
         scanDeviceAdmins(findings)
         scanVpn(findings)
         scanDeviceIntegrity(findings)
@@ -311,6 +313,29 @@ class DeviceAuditScanner(
             "Android не сообщил включённых сторонних Notification Listener.",
             "INFO", "Settings.Secure"
         )
+    }
+
+    private fun scanInputMethods(findings: MutableList<AuditFinding>) {
+        val report = InputTrustInspector.inspect(context)
+        if (report.methods.isEmpty()) {
+            findings += AuditFinding(
+                "input-method-none",
+                "Включённые сторонние способы ввода не обнаружены",
+                "Android не сообщил включённых способов ввода для проверки.",
+                "INFO",
+                "InputMethodManager"
+            )
+            return
+        }
+        report.methods.forEach { method ->
+            findings += AuditFinding(
+                id = "input-method-${method.packageName}",
+                title = if (method.active) "Активная клавиатура: ${method.label}" else "Включённая клавиатура: ${method.label}",
+                detail = "Пакет ${method.packageName} зарегистрирован как включённый способ ввода. ${if (method.active) "Сейчас он выбран активным." else "Сейчас он не выбран активным."} ${if (method.systemApp) "Android отмечает приложение как системное." else "Проверьте издателя и оставляйте способ ввода включённым только при доверии к нему."}",
+                severity = if (method.systemApp) "INFO" else "MEDIUM",
+                source = method.id
+            )
+        }
     }
 
     private fun scanDeviceIntegrity(findings: MutableList<AuditFinding>) {

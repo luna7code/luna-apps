@@ -94,6 +94,8 @@ object AttackChainDetector {
             (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types ||
                 ThreatSignalType.OVERLAY_ACCESS_ENABLED in types ||
                 ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types) -> 78
+        ThreatSignalType.APP_INSTALLED in types &&
+            ThreatSignalType.INPUT_METHOD_ENABLED in types -> 74
         ThreatSignalType.SENSITIVE_PERMISSION_CHANGED in types &&
             (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types ||
                 ThreatSignalType.OVERLAY_ACCESS_ENABLED in types ||
@@ -108,7 +110,7 @@ object AttackChainDetector {
     private fun chainTitle(types: Set<ThreatSignalType>): String = when {
         ThreatSignalType.SIGNER_CHANGED in types -> "Изменение идентичности и специальные доступы"
         ThreatSignalType.APP_INSTALLED in types -> "Новое приложение получило специальные доступы"
-        ThreatSignalType.INPUT_METHOD_ENABLED in types -> "Изменение способов ввода и доступа к уведомлениям"
+        ThreatSignalType.INPUT_METHOD_ENABLED in types -> "Новое приложение или способ ввода требует проверки"
         else -> "Связанные изменения безопасности приложения"
     }
 
@@ -120,7 +122,7 @@ object AttackChainDetector {
             if (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types) add("появился специальный доступ")
             if (ThreatSignalType.OVERLAY_ACCESS_ENABLED in types) add("обнаружен доступ к отображению поверх других приложений")
             if (ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types) add("обнаружен доступ к уведомлениям")
-            if (ThreatSignalType.INPUT_METHOD_ENABLED in types) add("изменился список способов ввода")
+            if (ThreatSignalType.INPUT_METHOD_ENABLED in types) add("обнаружен включённый способ ввода")
             if (ThreatSignalType.VPN_CONFIGURATION_CHANGED in types) add("изменилась конфигурация VPN")
         }
         return "В коротком временном интервале ${reasons.joinToString("; ")}. " +

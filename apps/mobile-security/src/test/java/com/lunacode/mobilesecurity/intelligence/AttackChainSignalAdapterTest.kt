@@ -36,6 +36,32 @@ class AttackChainSignalAdapterTest {
     }
 
     @Test
+    fun correlatesNewInputMethodWithNotificationAccess() {
+        val chains = AttackChainSignalAdapter.detect(
+            findings = listOf(
+                AuditFinding(
+                    id = "input-method-com.example.keyboard",
+                    title = "Enabled keyboard",
+                    detail = "Enabled input method",
+                    severity = "MEDIUM",
+                    source = "com.example.keyboard/.Ime"
+                ),
+                AuditFinding(
+                    id = "notification-listener-com.example.keyboard",
+                    title = "Notification access",
+                    detail = "Enabled listener",
+                    severity = "MEDIUM",
+                    source = "com.example.keyboard/.Listener"
+                )
+            ),
+            changes = emptyList(),
+            observedAtMillis = 20_000L
+        )
+        assertEquals(1, chains.size)
+        assertEquals(68, chains.single().confidenceScore)
+    }
+
+    @Test
     fun doesNotTreatDeclaredButDisabledServicesAsEnabledAccess() {
         val chains = AttackChainSignalAdapter.detect(
             findings = listOf(

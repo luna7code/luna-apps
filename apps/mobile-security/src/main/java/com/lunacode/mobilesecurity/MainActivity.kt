@@ -574,16 +574,63 @@ private fun SecurityOverview(
             }
         }
         item {
-            report?.let { SecurityPostureCard(it.posture, compact = true) }
+            if (report != null) {
+                Text("INCIDENT RESPONSE CENTER", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.8.sp)
+                SecurityPostureCard(report.posture, compact = true)
+            }
         }
         item {
             report?.let { EvidenceSealCard(it.integrityStatus, compact = true) }
         }
-        if (report != null && report.attackChains.isNotEmpty()) {
+        if (report != null) {
             item {
-                Text("ATTACK CHAIN DETECTOR · ${report.attackChains.size}", color = ProAmber, fontSize = 11.sp, letterSpacing = 1.5.sp)
+                val granted = report.findings.count { it.id.startsWith("granted-permissions-") }
+                val requested = report.findings.count { it.id.startsWith("permissions-") }
+                val special = report.findings.count {
+                    it.id.startsWith("accessibility-") && it.id != "accessibility-none" ||
+                        it.id.startsWith("notification-listener-") && it.id != "notification-listener-none" ||
+                        it.id.startsWith("admin-") && it.id != "admin-none" ||
+                        it.id.startsWith("input-method-") && it.id != "input-method-none"
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ProSecPalette.Border),
+                    colors = CardDefaults.cardColors(containerColor = ProPanel)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("PERMISSION INTELLIGENCE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                        Text("Выданные разрешения: $granted · широкие запросы: $requested · специальные доступы: $special", color = ProWhite, fontSize = 13.sp)
+                        Text("Запрошенные разрешения не равны выданным. Специальные доступы показываются отдельно; доступность данных зависит от версии Android и производителя.", color = ProMuted, fontSize = 11.sp)
+                    }
+                }
             }
-            items(report.attackChains) { chain -> AttackChainCard(chain) }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ProSecPalette.Border),
+                    colors = CardDefaults.cardColors(containerColor = ProPanel)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("TRUSTED BASELINE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                        Text(if (report.firstBaseline) "Базовая точка ещё не создана" else "Сравнение с предыдущей проверкой активно", color = ProWhite, fontSize = 14.sp)
+                        Text("Изменений в последнем сравнении: ${report.changes.size}. База строится из локально сохранённого отчёта; отсутствие изменений не доказывает безопасность.", color = ProMuted, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+        if (report != null) {
+            item {
+                Text("ANTI-SPYWARE GUARD · ${report.attackChains.size} СВЯЗАННЫХ ЦЕПОЧЕК", color = ProAmber, fontSize = 11.sp, letterSpacing = 1.5.sp)
+            }
+            if (report.attackChains.isEmpty()) {
+                item {
+                    Text("По доступным сигналам связанные цепочки не выявлены. Это не означает, что устройство полностью безопасно: Android ограничивает видимость части системных данных.", color = ProMuted, fontSize = 11.sp)
+                }
+            } else {
+                items(report.attackChains) { chain -> AttackChainCard(chain) }
+            }
         }
         if (report != null && report.changes.isNotEmpty()) {
             item {

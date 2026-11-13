@@ -20,7 +20,7 @@ object AttackChainSignalAdapter {
             val packageName = change.packageName?.takeIf { it.isNotBlank() } ?: return@forEachIndexed
             val type = when (change.kind) {
                 "installed" -> ThreatSignalType.APP_INSTALLED
-                "signer_changed", "signer_historical" -> ThreatSignalType.SIGNER_CHANGED
+                "signer_changed", "signer_historical", "signer_change_unverified" -> ThreatSignalType.SIGNER_CHANGED
                 "permissions_changed" -> ThreatSignalType.SENSITIVE_PERMISSION_CHANGED
                 else -> null
             } ?: return@forEachIndexed
@@ -44,10 +44,10 @@ object AttackChainSignalAdapter {
                     finding.id.removePrefix("admin-")
                 else -> null
             }?.takeIf { it.isNotBlank() } ?: return@forEach
-            val type = if (finding.id.startsWith("notification-listener-")) {
-                ThreatSignalType.NOTIFICATION_ACCESS_ENABLED
-            } else {
-                ThreatSignalType.SPECIAL_ACCESS_ENABLED
+            val type = when {
+                finding.id.startsWith("notification-listener-") -> ThreatSignalType.NOTIFICATION_ACCESS_ENABLED
+                finding.id.startsWith("input-method-") -> ThreatSignalType.INPUT_METHOD_ENABLED
+                else -> ThreatSignalType.SPECIAL_ACCESS_ENABLED
             }
             signals += ThreatSignal(
                 id = "finding:${finding.id}",
