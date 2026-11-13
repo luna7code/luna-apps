@@ -12,7 +12,9 @@ data class NativeLibraryInfo(
     val hasExecutableStack: Boolean?,
     val hasTextRelocations: Boolean?,
     val dynamicLibraryNames: List<String>,
-    val warnings: List<String>
+    val warnings: List<String>,
+    val dynamicSymbols: List<String> = emptyList(),
+    val programHeaderCount: Int = 0
 )
 
 data class ApkArchiveInspection(
@@ -43,6 +45,7 @@ object ApkArchiveInspector {
         var count = 0
         var total = 0L
         var truncated = false
+        val seenPaths = mutableSetOf<String>()
         ZipFile(file).use { zip ->
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
@@ -79,24 +82,23 @@ object ApkArchiveInspector {
     }
 
     internal fun parseElf(path: String, bytes: ByteArray): NativeLibraryInfo {
-        val warnings = mutableListOf<String>()
-        val valid = bytes.size >= 20 && bytes[0] == 0x7f.toByte() &&
+        val parsed = ElfMetadataParser.inspect(bytes)
+        val validHeader = bytes.size >= 20 && bytes[0] == 0x7f.toByte() &&
             bytes[1] == 'E'.code.toByte() && bytes[2] == 'L'.code.toByte() && bytes[3] == 'F'.code.toByte()
-        if (!valid) {
-            return NativeLibraryInfo(path, path.split('/').getOrNull(1) ?: "unknown", 0, 0,
-                "Invalid ELF", null, null, emptyList(), listOf("Invalid or truncated ELF header"))
+        if (!validHeader) {
+            return NativeLibraryInfo(
+                path, path.split('/').getOrNull(1) ?: "unknown", 0, 0,
+                "Invalid ELF", null, null, emptyList(),
+                parsed.warnings.ifEmpty { listOf("Invalid or truncated ELF header") }
+            )
         }
         val elfClass = bytes[4].toInt() and 0xff
-        val data = bytes[5].toInt() and 0xff
-        if (elfClass !in 1..2) warnings += "Unknown ELF class"
-        if (data !in 1..2) warnings += "Unknown ELF byte order"
-        fun u16(offset: Int): Int {
-            if (offset + 1 >= bytes.size) return 0
-            val a = bytes[offset].toInt() and 0xff
-            val b = bytes[offset + 1].toInt() and 0xff
-            return if (data == 2) (a shl 8) or b else a or (b shl 8)
-        }
-        val machine = u16(18)
+        val endian = bytes[5].toInt() and 0xff
+        val machine = if (bytes.size >= 20) {
+            val a = bytes[18].toInt() and 0xff
+            val b = bytes[19].toInt() and 0xff
+            if (endian == 2) (a shl 8) or b else a or (b shl 8)
+        } else 0
         val machineName = when (machine) {
             3 -> "x86"
             40 -> "ARM"
@@ -105,12 +107,15 @@ object ApkArchiveInspector {
             243 -> "RISC-V"
             else -> "Unknown ($machine)"
         }
+        val warnings = parsed.warnings.toMutableList()
+        if (elfClass !in 1..2) warnings += "Unknown ELF class"
+        if (endian !in 1..2) warnings += "Unknown ELF byte order"
         if (elfClass == 1 && machine in setOf(62, 183)) warnings += "ELF class and machine mismatch"
         if (elfClass == 2 && machine in setOf(3, 40)) warnings += "ELF class and machine mismatch"
         if (machineName == "Unknown ($machine)") warnings += "Unrecognized ELF machine"
-        // Bounded string scan only. It does not parse or resolve relocations or execute code.
-        val text = bytes.copyOfRange(0, minOf(bytes.size, MAX_STRING_BYTES))
-            .toString(Charsets.ISO_8859_1)
+        if (parsed.textRelocations == true) warnings += "ELF contains text relocations"
+        if (parsed.executableStack == true) warnings += "PT_GNU_STACK requests an executable stack"
+        val text = bytes.copyOfRange(0, minOf(bytes.size, MAX_STRING_BYTES)).toString(Charsets.ISO_8859_1)
         val sonames = Regex("""lib[A-Za-z0-9_.+-]{1,100}\.so(?:\.[0-9]+)*""")
             .findAll(text).map { it.value }.distinct().take(40).toList()
         if (sonames.any { it.contains("frida", true) || it.contains("substrate", true) }) {
@@ -121,7 +126,11 @@ object ApkArchiveInspector {
         }
         return NativeLibraryInfo(
             path, path.split('/').getOrNull(1) ?: "unknown", elfClass, machine, machineName,
-            null, null, sonames, warnings
+            parsed.executableStack, parsed.textRelocations,
+            (parsed.neededLibraries + sonames).distinct().take(80),
+            warnings.distinct().take(40),
+            parsed.dynamicSymbols,
+            parsed.programHeaderCount
         )
     }
 }
