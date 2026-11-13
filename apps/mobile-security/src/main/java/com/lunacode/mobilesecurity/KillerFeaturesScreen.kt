@@ -9,6 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -105,7 +108,10 @@ fun KillerFeaturesScreen(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(KillerBlack),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KillerBlack)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
             horizontal = 18.dp,
             vertical = 18.dp
