@@ -83,7 +83,7 @@ object ApkArchiveInspector {
 
     private fun canonicalPath(path: String): String {
         val parts = mutableListOf<String>()
-        path.replace('\\\\', '/').split('/').forEach { part ->
+        path.replace(92.toChar(), '/').split('/').forEach { part ->
             when (part) {
                 "", "." -> Unit
                 ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex) else parts += ".."
