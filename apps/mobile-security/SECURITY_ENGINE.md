@@ -132,3 +132,19 @@ Still required on the physical Pura 70:
 - local database corruption/recovery scenarios and history-chain behavior after key loss.
 
 No dynamic sandbox, cloud reputation service, bundled malware signatures, root inspection, or guarantee against sophisticated spyware is currently implemented.
+
+
+## APK X-RAY: bounded static string inspection
+
+The APK X-RAY pipeline reads Android package metadata through PackageManager and inspects archive entries as inert bytes. It does not install, load, or execute the selected APK. The manifest-derived report includes requested permissions, min/target SDK, exported activities/services/receivers/providers, component permission declarations, current signer fingerprints, Android-provided signer history/proof-of-rotation where available, and a comparison against an installed package of the same package name.
+
+A bounded string pass now inspects selected DEX and text-like archive entries for HTTP(S) URL literals and capability-related tokens (shell/process APIs, dynamic DEX loading, Accessibility, notification listeners, SMS, MediaProjection, overlays, package installation, device identifiers, and common networking APIs). Limits are 160 archive entries, 2 MiB per entry, 32 MiB total, 80 distinct URLs, and 40 grouped findings. The scan reports truncation rather than treating uninspected data as clean.
+
+Interpretation is deliberately conservative:
+- Manifest permissions are requested capabilities, not proof of grant or use.
+- Exported components are attack-surface candidates; actual reachability and authorization depend on intent filters, permissions, platform version, and runtime checks.
+- A certificate fingerprint identifies signing material, not publisher reputation. Rotation is trusted only when Android supplies a verified lineage.
+- URLs and API-like strings may be dead code, libraries, documentation, or decoys. They are contextual indicators, not evidence of a network connection or malicious action.
+- Obfuscation, encryption, native code, dynamic URL construction, split APKs, and archive regions beyond limits can hide behavior. Static analysis cannot prove an APK safe.
+
+All inspection remains local. The app does not add INTERNET permission, telemetry, or cloud submission for APK analysis.
