@@ -41,19 +41,28 @@ object OfflineLinkInspector {
         val raw = input.trim()
         require(raw.isNotEmpty()) { "Вставьте ссылку для проверки." }
         require(raw.length <= 4096) { "Ссылка слишком длинная для локального анализа." }
-        val normalized = if ("://" in raw) raw else "https://$raw"
+        val explicitScheme = Regex("^[A-Za-z][A-Za-z0-9+.-]*:").containsMatchIn(raw)
+        val normalized = if (explicitScheme || "://" in raw) raw else "https://$raw"
         val uri = runCatching { URI(normalized) }.getOrElse {
             throw IllegalArgumentException("Не удалось разобрать структуру ссылки.")
         }
         val authority = uri.rawAuthority.orEmpty()
         val hostRaw = uri.host ?: authority.substringAfterLast('@').substringBefore(':')
-        require(hostRaw.isNotBlank()) { "В ссылке не найден домен." }
         val host = runCatching { IDN.toASCII(hostRaw.lowercase()) }.getOrDefault(hostRaw.lowercase())
         val indicators = mutableListOf<String>()
         val scheme = uri.scheme?.lowercase().orEmpty()
 
         if (scheme == "http") indicators += "Используется незашифрованный HTTP вместо HTTPS."
         if (scheme !in setOf("http", "https")) indicators += "Необычная схема ссылки: $scheme."
+        if (host.isBlank()) {
+            indicators += "В адресе отсутствует обычное доменное имя."
+            return LinkInspection(
+                normalizedUrl = normalized,
+                host = "нет домена",
+                indicators = indicators.distinct(),
+                note = "Проверена только строка адреса. Содержимое URI-схемы не исполнялось и не открывалось."
+            )
+        }
         if (uri.rawUserInfo != null || '@' in authority) {
             indicators += "В адресе есть user-info перед доменом: возможна маскировка настоящего назначения."
         }
