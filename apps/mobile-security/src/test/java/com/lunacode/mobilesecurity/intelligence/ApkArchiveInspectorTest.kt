@@ -18,6 +18,8 @@ class ApkArchiveInspectorTest {
         bytes[4] = 2
         bytes[5] = 1
         bytes[18] = 183.toByte()
+        bytes[52] = 64
+        bytes[54] = 56
         val result = ApkArchiveInspector.parseElf("lib/arm64-v8a/libsample.so", bytes)
         assertEquals("AArch64", result.machineName)
         assertEquals(2, result.elfClass)
