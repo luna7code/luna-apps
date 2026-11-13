@@ -37,3 +37,13 @@ This is a private-distribution development build. Do not treat it as a stable re
 - Historic reports without signer-lineage metadata remain explicitly unverified when signer identity changes.
 - Offline threat-feed matching filters by package and signer before hashing; APK SHA-256 is computed at most once per package only when required by a surviving indicator.
 - This development phase is validated through GitHub Actions before it is eligible for the main branch. Physical Huawei Pura 70 testing and private release signing remain separate gates.
+
+
+## APK X-RAY expansion (development branch)
+
+- Added bounded offline extraction of HTTP(S) URL literals and capability-related strings from DEX and selected text-like APK entries.
+- Added grouped indicators for shell/process execution, dynamic code loading, Accessibility, notification access, SMS, screen capture, overlays, package installation, device identifiers, and networking APIs.
+- Added explicit scan limits and truncation reporting; findings are labeled as context indicators, not proof of behavior.
+- Expanded the APK X-RAY screen with extracted URLs and string findings.
+- Added JVM tests for URL extraction, indicator grouping, ignored archive entries, and bounded reads.
+- No APK installation or execution. No INTERNET permission, telemetry, or cloud upload added.
