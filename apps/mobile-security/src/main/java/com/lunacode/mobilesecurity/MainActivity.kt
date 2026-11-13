@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -33,6 +35,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -63,13 +66,13 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.TimeUnit
 
-private val ProBlack = Color(0xFF080808)
-private val ProPanel = Color(0xFF1D1D1D)
-private val ProWhite = Color(0xFFFFFFFF)
-private val ProMuted = Color(0xFFC2C2C2)
-private val ProGreen = Color(0xFF43D17A)
-private val ProAmber = Color(0xFFFFC15A)
-private val ProRed = Color(0xFFFF6B6B)
+private val ProBlack = ProSecPalette.Background
+private val ProPanel = ProSecPalette.Surface
+private val ProWhite = ProSecPalette.White
+private val ProMuted = ProSecPalette.Muted
+private val ProGreen = ProSecPalette.Accent
+private val ProAmber = ProSecPalette.Warning
+private val ProRed = ProSecPalette.Danger
 private const val MANUAL_SCAN_WORK = "pro-sec-manual-audit"
 
 private data class FindingUi(
@@ -332,17 +335,7 @@ private fun severityOrder(severity: String): Int = when (severity) {
 
 @Composable
 private fun ProSecTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = ProBlack,
-            surface = ProPanel,
-            primary = ProGreen,
-            onPrimary = ProBlack,
-            onBackground = ProWhite,
-            onSurface = ProWhite
-        ),
-        content = content
-    )
+    ProSecMaterialTheme(content)
 }
 
 @Composable
@@ -360,20 +353,30 @@ private fun SecurityHome(
         containerColor = ProBlack,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar(containerColor = ProPanel, contentColor = ProWhite) {
+            NavigationBar(containerColor = ProPanel, contentColor = ProWhite, tonalElevation = 0.dp) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Text("◉", fontSize = 16.sp) },
                     label = { Text("Обзор") },
-                    alwaysShowLabel = true
+                    alwaysShowLabel = true,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ProWhite, selectedTextColor = ProWhite,
+                        indicatorColor = ProSecPalette.Elevated,
+                        unselectedIconColor = ProMuted, unselectedTextColor = ProMuted
+                    )
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Text("✦", fontSize = 16.sp) },
                     label = { Text("Киллер-функции") },
-                    alwaysShowLabel = true
+                    alwaysShowLabel = true,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ProWhite, selectedTextColor = ProWhite,
+                        indicatorColor = ProSecPalette.Elevated,
+                        unselectedIconColor = ProMuted, unselectedTextColor = ProMuted
+                    )
                 )
             }
         }
@@ -433,8 +436,8 @@ private fun SecurityOverview(
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("PRO SEC", color = ProWhite, fontSize = 25.sp, letterSpacing = 2.sp)
-                    Text("ANDROID SECURITY", color = ProMuted, fontSize = 10.sp, letterSpacing = 3.sp)
+                    Text("PRO SEC", color = ProWhite, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                    Text("ANDROID SECURITY", color = ProMuted, fontSize = 10.sp, letterSpacing = 2.5.sp)
                 }
                 Text("● ЛОКАЛЬНО", color = ProGreen, fontSize = 11.sp)
             }
@@ -443,6 +446,7 @@ private fun SecurityOverview(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, ProSecPalette.Border),
                 colors = CardDefaults.cardColors(containerColor = ProPanel)
             ) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

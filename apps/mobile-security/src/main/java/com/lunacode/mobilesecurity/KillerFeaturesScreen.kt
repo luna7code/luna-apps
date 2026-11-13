@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,18 +46,20 @@ import com.lunacode.mobilesecurity.intelligence.InputTrustReport
 import com.lunacode.mobilesecurity.intelligence.LinkInspection
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.intelligence.OfflineLinkInspector
+import com.lunacode.mobilesecurity.intelligence.ThreatDatabaseStore
+import com.lunacode.mobilesecurity.intelligence.TrustedThreatKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-private val KillerBlack = Color(0xFF080808)
-private val KillerPanel = Color(0xFF1D1D1D)
-private val KillerWhite = Color(0xFFFFFFFF)
-private val KillerMuted = Color(0xFFC2C2C2)
-private val KillerGreen = Color(0xFF43D17A)
-private val KillerAmber = Color(0xFFFFC15A)
-private val KillerRed = Color(0xFFFF6B6B)
+private val KillerBlack = ProSecPalette.Background
+private val KillerPanel = ProSecPalette.Surface
+private val KillerWhite = ProSecPalette.White
+private val KillerMuted = ProSecPalette.Muted
+private val KillerGreen = ProSecPalette.Accent
+private val KillerAmber = ProSecPalette.Warning
+private val KillerRed = ProSecPalette.Danger
 
 data class KillerChangeUi(
     val kind: String,
@@ -100,6 +103,29 @@ fun KillerFeaturesScreen(
     var apkReport by remember { mutableStateOf<ApkXRayReport?>(null) }
     var apkLoading by remember { mutableStateOf(false) }
     var apkError by remember { mutableStateOf<String?>(null) }
+    var threatStatus by remember { mutableStateOf(ThreatDatabaseStore(context).statusDescription()) }
+    var threatError by remember { mutableStateOf<String?>(null) }
+    var threatImporting by remember { mutableStateOf(false) }
+
+    val threatPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            threatImporting = true
+            threatError = null
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { ThreatDatabaseStore(context).importFrom(uri) }
+                }
+                result.onSuccess {
+                    threatStatus = "Подпись проверена · версия ${it.version} · индикаторов ${it.indicators.size}"
+                }.onFailure {
+                    threatError = it.message ?: "Не удалось импортировать базу."
+                }
+                threatImporting = false
+            }
+        }
+    }
 
     val apkPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -132,8 +158,8 @@ fun KillerFeaturesScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("KILLER FEATURES", color = KillerGreen, fontSize = 10.sp, letterSpacing = 3.sp)
-                Text("Инструменты PRO SEC", color = KillerWhite, fontSize = 26.sp)
+                Text("PRO SEC / INTELLIGENCE", color = KillerGreen, fontSize = 10.sp, letterSpacing = 2.5.sp)
+                Text("Центр анализа защиты", color = KillerWhite, fontSize = 26.sp)
                 Text(
                     "Локальные инструменты, которые помогают увидеть не только вирусы, но и риски контроля, подмены и изменений устройства.",
                     color = KillerMuted,
@@ -460,6 +486,31 @@ fun KillerFeaturesScreen(
         }
 
         item {
+            FeatureHeader(
+                "11 · OFFLINE THREAT INTELLIGENCE",
+                "Подписанная база индикаторов",
+                "Обновления импортируются вручную из локального файла. PRO SEC проверяет подпись RSA, издателя, структуру записей и номер версии. Сетевых запросов нет."
+            )
+            InfoCard("Статус доверенной базы", threatStatus)
+            if (TrustedThreatKeys.publicKeysBase64.isEmpty()) {
+                InfoCard(
+                    "Корень доверия не настроен",
+                    "Импорт намеренно заблокирован: в приложение ещё не добавлен проверенный публичный ключ издателя. Это безопасное состояние по умолчанию; неподписанные базы не принимаются."
+                )
+            }
+            Button(
+                onClick = { threatPicker.launch(arrayOf("text/plain", "application/octet-stream")) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !threatImporting && TrustedThreatKeys.publicKeysBase64.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = KillerGreen, contentColor = KillerBlack,
+                    disabledContainerColor = KillerPanel, disabledContentColor = KillerMuted
+                )
+            ) { Text(if (threatImporting) "ПРОВЕРКА ПОДПИСИ..." else "ИМПОРТИРОВАТЬ ПОДПИСАННУЮ БАЗУ") }
+            threatError?.let { Text(it, color = KillerRed, fontSize = 12.sp) }
+        }
+
+        item {
             Text(
                 "ГРАНИЦЫ ВОЗМОЖНОСТЕЙ",
                 color = KillerMuted,
@@ -489,6 +540,7 @@ private fun FeatureCard(label: String, title: String, detail: String, accent: Co
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Border),
         colors = CardDefaults.cardColors(containerColor = KillerPanel)
     ) {
         Column(
@@ -507,6 +559,7 @@ private fun InfoCard(title: String, detail: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(15.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Border),
         colors = CardDefaults.cardColors(containerColor = KillerPanel)
     ) {
         Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

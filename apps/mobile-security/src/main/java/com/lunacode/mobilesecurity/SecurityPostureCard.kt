@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,13 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 
-private val PosturePanel = Color(0xFF1D1D1D)
-private val PostureWhite = Color(0xFFFFFFFF)
-private val PostureMuted = Color(0xFFC2C2C2)
-private val PostureGreen = Color(0xFF43D17A)
-private val PostureAmber = Color(0xFFFFC15A)
-private val PostureRed = Color(0xFFFF6B6B)
-private val PostureBlack = Color(0xFF080808)
+private val PosturePanel = ProSecPalette.Surface
+private val PostureWhite = ProSecPalette.White
+private val PostureMuted = ProSecPalette.Muted
+private val PostureGreen = ProSecPalette.Positive
+private val PostureAmber = ProSecPalette.Warning
+private val PostureRed = ProSecPalette.Danger
+private val PostureBlack = ProSecPalette.Background
 
 @Composable
 fun SecurityPostureCard(
@@ -46,6 +47,7 @@ fun SecurityPostureCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Border),
         colors = CardDefaults.cardColors(containerColor = PosturePanel)
     ) {
         Column(
@@ -163,6 +165,7 @@ fun EvidenceSealCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Border),
         colors = CardDefaults.cardColors(containerColor = PosturePanel)
     ) {
         Column(
