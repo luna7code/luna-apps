@@ -340,11 +340,22 @@ fun KillerFeaturesScreen(
                 InfoCard("История пока пуста", "Запустите первый аудит. Каждый последующий отчёт сохранится локально; хранится не более 90 последних записей.")
             } else {
                 history.forEach { item ->
+                    val sealLabel = when (item.integrityStatus) {
+                        "VERIFIED" -> "HMAC VERIFIED"
+                        "FAILED" -> "HMAC FAILED"
+                        "LEGACY" -> "LEGACY · БЕЗ ПЕЧАТИ"
+                        "UNSEALED" -> "UNSEALED"
+                        else -> "UNVERIFIABLE"
+                    }
                     FeatureCard(
-                        "ЛОКАЛЬНЫЙ СНИМОК",
+                        sealLabel,
                         java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.scannedAt)),
                         "Сигналов аудита: ${item.findingCount} · Изменений с прошлого снимка: ${item.changeCount}",
-                        KillerMuted
+                        when (item.integrityStatus) {
+                            "VERIFIED" -> KillerGreen
+                            "FAILED" -> KillerRed
+                            else -> KillerMuted
+                        }
                     )
                 }
             }
@@ -357,25 +368,6 @@ fun KillerFeaturesScreen(
                 "Каждый новый отчёт подписывается HMAC-ключом Android Keystore и связывается с предыдущим. Это помогает обнаружить изменение содержимого или нарушение порядка записей в локальной истории."
             )
             EvidenceSealCard(integrityStatus)
-            history.forEach { item ->
-                val label = when (item.integrityStatus) {
-                    "VERIFIED" -> "HMAC VERIFIED"
-                    "FAILED" -> "HMAC FAILED"
-                    "LEGACY" -> "LEGACY · БЕЗ ПЕЧАТИ"
-                    "UNSEALED" -> "UNSEALED"
-                    else -> "UNVERIFIABLE"
-                }
-                FeatureCard(
-                    label,
-                    java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.scannedAt)),
-                    "Сигналов аудита: ${item.findingCount} · Изменений: ${item.changeCount}",
-                    when (item.integrityStatus) {
-                        "VERIFIED" -> KillerGreen
-                        "FAILED" -> KillerRed
-                        else -> KillerMuted
-                    }
-                )
-            }
         }
 
         item {
