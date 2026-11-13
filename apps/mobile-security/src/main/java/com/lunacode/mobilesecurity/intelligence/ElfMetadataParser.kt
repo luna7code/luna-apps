@@ -157,7 +157,7 @@ internal object ElfMetadataParser {
                 val info = u8(bytes, infoOffset)
                 val binding = info ushr 4
                 if (binding !in 1..2) continue
-                readCString(bytes, strtabOffset!! + nameOffset, strtabOffset + strsz)?.let {
+                readCString(bytes, strtabOffset!! + nameOffset, strtabOffset!! + strsz)?.let {
                     if (symbols.size < MAX_REPORTED_SYMBOLS && it.isNotBlank()) symbols += it
                 }
             }
