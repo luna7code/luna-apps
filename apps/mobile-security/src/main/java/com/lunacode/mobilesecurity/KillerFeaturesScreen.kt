@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -47,7 +48,8 @@ import com.lunacode.mobilesecurity.intelligence.LinkInspection
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.intelligence.OfflineLinkInspector
 import com.lunacode.mobilesecurity.intelligence.ThreatDatabaseStore
-import com.lunacode.mobilesecurity.intelligence.TrustedThreatKeys
+import com.lunacode.mobilesecurity.intelligence.ThreatKeyTrustStore
+import com.lunacode.mobilesecurity.intelligence.ThreatPublicKeyCandidate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -104,12 +106,42 @@ fun KillerFeaturesScreen(
     var apkLoading by remember { mutableStateOf(false) }
     var apkError by remember { mutableStateOf<String?>(null) }
     var threatStatus by remember { mutableStateOf("Проверка статуса локальной базы...") }
+    var trustedThreatKeyAvailable by remember { mutableStateOf(false) }
+    var threatKeyCandidate by remember { mutableStateOf<ThreatPublicKeyCandidate?>(null) }
+    var threatKeyIdInput by remember { mutableStateOf("luna-code-primary") }
+    var threatKeyFingerprintConfirmed by remember { mutableStateOf(false) }
+    var threatKeyImporting by remember { mutableStateOf(false) }
+    var replacingThreatKey by remember { mutableStateOf(false) }
     var threatError by remember { mutableStateOf<String?>(null) }
     var threatImporting by remember { mutableStateOf(false) }
 
     LaunchedEffect(context) {
-        threatStatus = withContext(Dispatchers.IO) {
-            ThreatDatabaseStore(context).statusDescription()
+        val state = withContext(Dispatchers.IO) {
+            ThreatDatabaseStore(context).statusDescription() to
+                ThreatKeyTrustStore(context).publicKeys().isNotEmpty()
+        }
+        threatStatus = state.first
+        trustedThreatKeyAvailable = state.second
+    }
+
+    val threatKeyPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            threatKeyImporting = true
+            threatError = null
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { ThreatKeyTrustStore(context).readCandidate(uri, threatKeyIdInput) }
+                }
+                result.onSuccess {
+                    threatKeyCandidate = it
+                    threatKeyFingerprintConfirmed = false
+                }.onFailure {
+                    threatError = it.message ?: "Не удалось прочитать публичный ключ."
+                }
+                threatKeyImporting = false
+            }
         }
     }
 
@@ -498,16 +530,95 @@ fun KillerFeaturesScreen(
                 "Обновления импортируются вручную из локального файла. PRO SEC проверяет подпись RSA, издателя, структуру записей и номер версии. Сетевых запросов нет."
             )
             InfoCard("Статус доверенной базы", threatStatus)
-            if (TrustedThreatKeys.publicKeysBase64.isEmpty()) {
-                InfoCard(
-                    "Корень доверия не настроен",
-                    "Импорт намеренно заблокирован: в приложение ещё не добавлен проверенный публичный ключ издателя. Это безопасное состояние по умолчанию; неподписанные базы не принимаются."
+            if (!trustedThreatKeyAvailable || replacingThreatKey) {
+                OutlinedTextField(
+                    value = threatKeyIdInput,
+                    onValueChange = {
+                        threatKeyIdInput = it
+                        threatKeyCandidate = null
+                        threatKeyFingerprintConfirmed = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("ID издателя в подписанной базе") },
+                    placeholder = { Text("luna-code-primary") },
+                    singleLine = true
                 )
+                Button(
+                    onClick = { threatKeyPicker.launch(arrayOf("application/x-pem-file", "text/plain", "application/octet-stream")) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !threatKeyImporting,
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text(if (threatKeyImporting) "ЧТЕНИЕ КЛЮЧА..." else "ВЫБРАТЬ PEM-ПУБЛИЧНЫЙ КЛЮЧ") }
+                threatKeyCandidate?.let { candidate ->
+                    InfoCard("SHA-256 ОТПЕЧАТОК КАНДИДАТА", candidate.sha256Fingerprint)
+                    Text(
+                        "Сверьте отпечаток с опубликованным издателем значением через независимый доверенный канал. Не подтверждайте ключ, полученный только вместе с файлом базы.",
+                        color = KillerMuted,
+                        fontSize = 11.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = threatKeyFingerprintConfirmed,
+                            onCheckedChange = { threatKeyFingerprintConfirmed = it }
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Я независимо сверил SHA-256 отпечаток", color = KillerWhite, fontSize = 12.sp)
+                            Text("Закрепление ключа разрешается только после этого подтверждения.", color = KillerMuted, fontSize = 10.sp)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            val selected = candidate
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        ThreatKeyTrustStore(context).pin(
+                                            selected,
+                                            threatKeyFingerprintConfirmed
+                                        )
+                                    }
+                                }
+                                if (result.isSuccess) {
+                                    trustedThreatKeyAvailable = true
+                                    replacingThreatKey = false
+                                    threatKeyCandidate = null
+                                    threatKeyFingerprintConfirmed = false
+                                    threatStatus = withContext(Dispatchers.IO) {
+                                        ThreatDatabaseStore(context).statusDescription()
+                                    }
+                                } else {
+                                    threatError = result.exceptionOrNull()?.message
+                                        ?: "Не удалось закрепить публичный ключ."
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = threatKeyFingerprintConfirmed,
+                        colors = ButtonDefaults.buttonColors(containerColor = KillerGreen, contentColor = KillerBlack)
+                    ) { Text("ЗАКРЕПИТЬ ДОВЕРЕННЫЙ КЛЮЧ") }
+                }
+            } else {
+                InfoCard(
+                    "ЗАКРЕПЛЁННЫЙ ПУБЛИЧНЫЙ КЛЮЧ",
+                    ThreatKeyTrustStore(context).trustedKeySummary()
+                )
+                Button(
+                    onClick = {
+                        replacingThreatKey = true
+                        threatKeyCandidate = null
+                        threatKeyFingerprintConfirmed = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text("ИЗМЕНИТЬ КЛЮЧ ИЗДАТЕЛЯ") }
             }
             Button(
                 onClick = { threatPicker.launch(arrayOf("text/plain", "application/octet-stream")) },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !threatImporting && TrustedThreatKeys.publicKeysBase64.isNotEmpty(),
+                enabled = !threatImporting && trustedThreatKeyAvailable,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = KillerGreen, contentColor = KillerBlack,
                     disabledContainerColor = KillerPanel, disabledContentColor = KillerMuted

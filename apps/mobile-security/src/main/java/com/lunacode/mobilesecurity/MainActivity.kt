@@ -63,6 +63,7 @@ import com.lunacode.mobilesecurity.security.ReportEnvelopeCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Date
@@ -179,11 +180,14 @@ class MainActivity : ComponentActivity() {
                     val dao = ProSecDatabase.get(applicationContext).scanDao()
                     val cipher = LocalPayloadCipher()
                     val recentRecords = dao.recent(8)
-                    val decoded = recentRecords.mapNotNull { record ->
+                    // Keep every retained Room row visible. Unreadable or malformed
+                    // rows become explicit FAILED timeline entries instead of disappearing.
+                    val decoded = recentRecords.map { record ->
                         runCatching {
                             val envelope = ReportEnvelopeCodec.decode(
                                 cipher.decrypt(record.encryptedPayload)
                             )
+                            require(envelope.report.isNotBlank()) { "Empty or malformed report envelope" }
                             val integrityStatus = when {
                                 !envelope.wrapped -> "LEGACY"
                                 envelope.chainTag == null -> "UNSEALED"
@@ -207,10 +211,20 @@ class MainActivity : ComponentActivity() {
                                 envelope = envelope,
                                 integrityStatus = integrityStatus
                             )
-                        }.getOrNull()
-                    }
-                    if (decoded.size < recentRecords.size) {
-                        decoded.firstOrNull()?.integrityStatus = "FAILED"
+                        }.getOrElse {
+                            DecodedScanRecord(
+                                record = record,
+                                json = JSONObject().apply {
+                                    put("schema", 1)
+                                    put("findings", JSONArray())
+                                    put("changes", JSONArray())
+                                    put("findingCount", 0)
+                                    put("changeCount", 0)
+                                },
+                                envelope = ReportEnvelope("", "", null, true),
+                                integrityStatus = "FAILED"
+                            )
+                        }
                     }
                     val chronological = decoded.asReversed()
                     val chainStatuses = HistoryChainVerifier.verifyChronological(
@@ -296,8 +310,14 @@ class MainActivity : ComponentActivity() {
             result.onSuccess { latest ->
                 report = latest
                 if (latest != null && !scanning) {
-                    scanMessage = "Последняя проверка: " +
-                        DateFormat.getDateTimeInstance().format(Date(latest.scannedAt))
+                    scanMessage = if (latest.integrityStatus == "FAILED" ||
+                        latest.integrityStatus == "UNVERIFIABLE"
+                    ) {
+                        "Последняя запись сохранена, но её целостность не подтверждена. Данные не удалены."
+                    } else {
+                        "Последняя проверка: " +
+                            DateFormat.getDateTimeInstance().format(Date(latest.scannedAt))
+                    }
                 }
             }.onFailure {
                 report = null

@@ -34,4 +34,34 @@ class HistoryChainVerifierTest {
         )
         assertEquals("VERIFIED", result.single().status)
     }
+
+    @Test
+    fun detectsDowngradeFromSealedToUnsealedRecord() {
+        val result = HistoryChainVerifier.verifyChronological(
+            listOf(
+                HistoryChainRecord(1, "", "A", "VERIFIED"),
+                HistoryChainRecord(2, "", null, "LEGACY")
+            )
+        )
+        assertEquals("FAILED", result.last().status)
+    }
+
+    @Test
+    fun acceptsFirstSealedRecordAfterLegacyHistoryOnlyWhenItStartsANewChain() {
+        val valid = HistoryChainVerifier.verifyChronological(
+            listOf(
+                HistoryChainRecord(1, "", null, "LEGACY"),
+                HistoryChainRecord(2, "", "B", "VERIFIED")
+            )
+        )
+        assertEquals("VERIFIED", valid.last().status)
+
+        val invalid = HistoryChainVerifier.verifyChronological(
+            listOf(
+                HistoryChainRecord(1, "", null, "FAILED"),
+                HistoryChainRecord(2, "A", "B", "VERIFIED")
+            )
+        )
+        assertEquals("FAILED", invalid.last().status)
+    }
 }
