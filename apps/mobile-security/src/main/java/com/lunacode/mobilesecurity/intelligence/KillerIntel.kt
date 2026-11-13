@@ -382,7 +382,8 @@ object ApkXRay {
     ): List<RequestedPermissionAssessment> = permissions.distinct().take(200).map { name ->
         val info = runCatching {
             if (Build.VERSION.SDK_INT >= 33) {
-                pm.getPermissionInfo(name, PackageManager.PermissionInfoFlags.of(0))
+                @Suppress("DEPRECATION")
+                pm.getPermissionInfo(name, 0)
             } else {
                 @Suppress("DEPRECATION")
                 pm.getPermissionInfo(name, 0)
