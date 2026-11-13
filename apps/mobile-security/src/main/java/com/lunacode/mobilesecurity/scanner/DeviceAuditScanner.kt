@@ -141,9 +141,10 @@ class DeviceAuditScanner(private val context: Context) {
 
     private fun scanVpn(findings: MutableList<AuditFinding>) {
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val vpnActive = manager.allNetworks.any { network ->
-            manager.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        }
+        val activeNetwork = manager.activeNetwork
+        val vpnActive = activeNetwork?.let { network ->
+            manager.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+        } == true
         findings += AuditFinding(
             id = "vpn-state",
             title = if (vpnActive) "Обнаружено VPN-подключение" else "Активное VPN-подключение не обнаружено",
