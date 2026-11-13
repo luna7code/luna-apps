@@ -62,6 +62,7 @@ object ChangeSentinel {
         val version: String,
         val signer: String,
         val permissions: String,
+        val installer: String,
         val updatedAt: Long
     )
 
@@ -76,7 +77,7 @@ object ChangeSentinel {
             changes += SentinelChange(
                 "installed",
                 "Установлено новое приложение: ${app.label}",
-                "Пакет $packageName появился после предыдущей проверки. Проверьте издателя и источник установки.",
+                "Пакет $packageName появился после предыдущей проверки. Установочный источник, сообщённый Android: ${app.installer.ifBlank { "неизвестен" }}. Проверьте издателя и источник установки.",
                 "MEDIUM"
             )
         }
@@ -141,6 +142,7 @@ object ChangeSentinel {
                 version = app.optString("version", ""),
                 signer = app.optString("signerSha256", ""),
                 permissions = app.optString("permissionsSha256", ""),
+                installer = app.optString("installerPackage", ""),
                 updatedAt = app.optLong("lastUpdateTime")
             )
         }
