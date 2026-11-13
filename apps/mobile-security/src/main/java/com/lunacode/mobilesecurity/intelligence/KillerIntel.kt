@@ -127,6 +127,11 @@ data class ApkXRayReport(
     val dexScanTruncated: Boolean,
     val dexScanDurationMs: Long,
     val dexLimitReason: String?,
+    val extractedUrls: List<String>,
+    val stringFindings: List<StaticStringFinding>,
+    val stringScanEntries: Int,
+    val stringScanBytes: Long,
+    val stringScanTruncated: Boolean,
     val threatIndicators: List<ThreatIndicator>,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
@@ -199,6 +204,7 @@ object ApkXRay {
         val exportedWithoutPermission = exportedDetails.count { it.permission.isBlank() }
         val apkDigest = sha256(file)
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
+        val stringScan = runCatching { StaticStringIndicatorScanner.scan(file) }.getOrNull()
         val feedIndicators = ThreatDatabaseStore(context).loadVerified()
             ?.byPackageName?.get(packageName).orEmpty()
         val threatMatches = ThreatIndicatorMatcher.match(
@@ -233,6 +239,27 @@ object ApkXRay {
         val sensitivePermissions = requested.filter { it in SENSITIVE_PERMISSIONS }
         if (sensitivePermissions.isNotEmpty()) {
             risks += ApkRisk("Чувствительные разрешения: ${sensitivePermissions.size}", sensitivePermissions.joinToString("\n"), "LOW")
+        }
+        if (stringScan?.urls.orEmpty().isNotEmpty()) {
+            risks += ApkRisk(
+                "URL-адреса найдены в статических строках: ${stringScan?.urls?.size ?: 0}",
+                "Найденные адреса — только извлечённые строки из APK. Это не подтверждает сетевые обращения; список приведён ниже для ручной проверки.",
+                "INFO"
+            )
+        }
+        stringScan?.findings.orEmpty().forEach { finding ->
+            risks += ApkRisk(
+                "Строковый индикатор: ${finding.category}",
+                "Токен «${finding.indicator}» найден ${finding.occurrences} раз(а) в ограниченно просмотренных строках. Наличие строки не доказывает вызов API или вредоносное действие.",
+                "INFO"
+            )
+        }
+        if (stringScan?.truncated == true) {
+            risks += ApkRisk(
+                "Строковый анализ ограничен",
+                "Достигнут лимит архива или объёма данных. Отсутствие индикаторов в непроверенной части не может быть подтверждено.",
+                "INFO"
+            )
         }
         if (signers.isEmpty()) {
             risks += ApkRisk("Сертификат подписи не прочитан", "Не удалось извлечь сертификат APK. Сравнение издателя недоступно.", "MEDIUM")
@@ -285,6 +312,11 @@ object ApkXRay {
             dexScanTruncated = dexScan?.truncated ?: true,
             dexScanDurationMs = dexScan?.durationMs ?: 0L,
             dexLimitReason = dexScan?.limitReason,
+            extractedUrls = stringScan?.urls.orEmpty(),
+            stringFindings = stringScan?.findings.orEmpty(),
+            stringScanEntries = stringScan?.entriesScanned ?: 0,
+            stringScanBytes = stringScan?.bytesScanned ?: 0L,
+            stringScanTruncated = stringScan?.truncated ?: true,
             threatIndicators = threatMatches,
             risks = risks,
             fileSizeBytes = file.length()
