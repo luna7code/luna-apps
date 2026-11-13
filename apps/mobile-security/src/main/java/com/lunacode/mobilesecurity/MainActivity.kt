@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,9 +23,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -39,6 +44,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.lunacode.mobilesecurity.data.ProSecDatabase
+import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
 import kotlinx.coroutines.Dispatchers
@@ -59,7 +65,12 @@ private val ProRed = Color(0xFFFF6B6B)
 private const val MANUAL_SCAN_WORK = "pro-sec-manual-audit"
 
 private data class FindingUi(val title: String, val detail: String, val severity: String)
-private data class ScanReportUi(val scannedAt: Long, val findings: List<FindingUi>) {
+private data class ScanReportUi(
+    val scannedAt: Long,
+    val findings: List<FindingUi>,
+    val changes: List<KillerChangeUi>,
+    val firstBaseline: Boolean
+) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
     val lowCount get() = findings.count { it.severity == "LOW" }
@@ -132,7 +143,8 @@ class MainActivity : ComponentActivity() {
                     val record = ProSecDatabase.get(applicationContext).scanDao().latest()
                         ?: return@runCatching null
                     val json = JSONObject(LocalPayloadCipher().decrypt(record.encryptedPayload))
-                    require(json.optInt("schema") == 1) { "Unsupported report schema" }
+                    val schema = json.optInt("schema", 1)
+                    require(schema in 1..2) { "Unsupported report schema" }
                     val array = json.optJSONArray("findings")
                         ?: error("Report findings are missing")
                     val findings = buildList {
@@ -147,7 +159,17 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }.sortedBy { severityOrder(it.severity) }
-                    ScanReportUi(record.scannedAt, findings)
+
+                    val sentinel = ChangeSentinel.read(json)
+                    val changes = sentinel.changes.map {
+                        KillerChangeUi(it.kind, it.title, it.detail, it.level)
+                    }
+                    ScanReportUi(
+                        scannedAt = record.scannedAt,
+                        findings = findings,
+                        changes = changes,
+                        firstBaseline = schema < 2 || sentinel.isFirstBaseline
+                    )
                 }
             }
             result.onSuccess { latest ->
@@ -204,6 +226,61 @@ private fun ProSecTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun SecurityHome(
+    report: ScanReportUi?,
+    scanning: Boolean,
+    scanMessage: String,
+    onRefresh: () -> Unit,
+    onScan: () -> Unit
+) {
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    Scaffold(
+        containerColor = ProBlack,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            NavigationBar(containerColor = ProPanel, contentColor = ProWhite) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Text("◉", fontSize = 16.sp) },
+                    label = { Text("Обзор") },
+                    alwaysShowLabel = true
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Text("✦", fontSize = 16.sp) },
+                    label = { Text("Киллер-функции") },
+                    alwaysShowLabel = true
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(ProBlack)
+        ) {
+            if (selectedTab == 0) {
+                SecurityOverview(
+                    report = report,
+                    scanning = scanning,
+                    scanMessage = scanMessage,
+                    onRefresh = onRefresh,
+                    onScan = onScan
+                )
+            } else {
+                KillerFeaturesScreen(
+                    changes = report?.changes.orEmpty(),
+                    firstBaseline = report?.firstBaseline ?: true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SecurityOverview(
     report: ScanReportUi?,
     scanning: Boolean,
     scanMessage: String,
@@ -286,6 +363,27 @@ private fun SecurityHome(
                 }
             }
         }
+        if (report != null && report.changes.isNotEmpty()) {
+            item {
+                Text(
+                    "CHANGE SENTINEL · ${report.changes.size} ИЗМЕНЕНИЙ",
+                    color = ProAmber,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.5.sp
+                )
+            }
+            items(report.changes.take(8)) { change ->
+                val color = when (change.level) {
+                    "HIGH" -> ProRed
+                    "MEDIUM" -> ProAmber
+                    else -> ProMuted
+                }
+                FindingCard(
+                    FindingUi(change.title, change.detail, change.level),
+                    color
+                )
+            }
+        }
         item {
             Text(
                 "РЕЗУЛЬТАТЫ ПОСЛЕДНЕЙ ПРОВЕРКИ",
@@ -365,8 +463,8 @@ private fun Metric(label: String, value: Int, color: Color) {
 }
 
 @Composable
-private fun FindingCard(finding: FindingUi) {
-    val color = when (finding.severity) {
+private fun FindingCard(finding: FindingUi, colorOverride: Color? = null) {
+    val color = colorOverride ?: when (finding.severity) {
         "HIGH" -> ProRed
         "MEDIUM" -> ProAmber
         "LOW" -> ProMuted
