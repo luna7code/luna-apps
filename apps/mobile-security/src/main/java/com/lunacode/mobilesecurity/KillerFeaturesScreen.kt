@@ -777,8 +777,12 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             FeatureCard(
                 "NATIVE · ${library.abi}",
                 library.path,
-                "ELF: ${library.machineName} · class ${library.elfClass}" +
-                    if (library.warnings.isEmpty()) "\\nЯвных структурных индикаторов не найдено." else "\\n${library.warnings.joinToString("; ")}",
+                "ELF: ${library.machineName} · class ${library.elfClass} · program headers: ${library.programHeaderCount}" +
+                    "\\nGNU stack: ${library.hasExecutableStack?.let { if (it) "EXECUTABLE" else "NX" } ?: "UNKNOWN"}" +
+                    "\\nText relocations: ${library.hasTextRelocations?.let { if (it) "YES" else "NO" } ?: "UNKNOWN"}" +
+                    "\\nDT_NEEDED: ${library.dynamicLibraryNames.joinToString().ifBlank { "не прочитаны" }}" +
+                    "\\nDynamic symbols: ${library.dynamicSymbols.take(12).joinToString().ifBlank { "не прочитаны" }}" +
+                    if (library.warnings.isEmpty()) "\\nСтруктурные предупреждения не обнаружены." else "\\n${library.warnings.joinToString("; ")}",
                 if (library.warnings.isEmpty()) KillerMuted else KillerAmber
             )
         }
