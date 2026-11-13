@@ -48,7 +48,7 @@ class OfflineThreatDatabaseTest {
     @Test fun rejectsModifiedContent() {
         val pair = keyPair()
         val trusted = mapOf("luna-test-key" to Base64.getEncoder().encodeToString(pair.public.encoded))
-        val tampered = signed(pair).replace("Known threat", "Other threat")
+        val tampered = signed(pair).replace(enc("Known threat"), enc("Other threat"))
         assertThrows(IllegalArgumentException::class.java) { OfflineThreatDatabaseVerifier.verify(tampered, trusted) }
     }
 
