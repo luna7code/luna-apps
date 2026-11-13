@@ -165,7 +165,8 @@ class MainActivity : ComponentActivity() {
                 runCatching {
                     val dao = ProSecDatabase.get(applicationContext).scanDao()
                     val cipher = LocalPayloadCipher()
-                    val decoded = dao.recent(8).mapNotNull { record ->
+                    val recentRecords = dao.recent(8)
+                    val decoded = recentRecords.mapNotNull { record ->
                         runCatching {
                             val envelope = ReportEnvelopeCodec.decode(
                                 cipher.decrypt(record.encryptedPayload)
@@ -194,6 +195,9 @@ class MainActivity : ComponentActivity() {
                                 integrityStatus = integrityStatus
                             )
                         }.getOrNull()
+                    }
+                    if (decoded.size < recentRecords.size) {
+                        decoded.firstOrNull()?.integrityStatus = "FAILED"
                     }
                     val chronological = decoded.asReversed()
                     for (index in 1 until chronological.size) {
