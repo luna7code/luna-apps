@@ -40,7 +40,7 @@ class ReportEnvelopeCodecTest {
 
     @Test
     fun alteredChainPrefixDoesNotDowngradeToLegacy() {
-        val decoded = ReportEnvelopeCodec.decode("PROSEC-CHAIN-2\\nnot-a-valid-envelope")
+        val decoded = ReportEnvelopeCodec.decode("PROSEC-CHAIN-2\nnot-a-valid-envelope")
         assertTrue(decoded.wrapped)
         assertNull(decoded.chainTag)
         assertEquals("", decoded.report)
