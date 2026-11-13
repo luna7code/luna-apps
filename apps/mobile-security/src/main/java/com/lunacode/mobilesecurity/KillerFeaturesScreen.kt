@@ -196,7 +196,7 @@ fun KillerFeaturesScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("PRO SEC / INTELLIGENCE", color = KillerGreen, fontSize = 10.sp, letterSpacing = 2.5.sp)
+                Text("ИНСТРУМЕНТЫ PRO SEC", color = KillerGreen, fontSize = 10.sp, letterSpacing = 2.5.sp)
                 Text("Центр анализа защиты", color = KillerWhite, fontSize = 26.sp)
                 Text(
                     "Локальные инструменты, которые помогают увидеть не только вирусы, но и риски контроля, подмены и изменений устройства.",
@@ -525,7 +525,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "11 · OFFLINE THREAT INTELLIGENCE",
+                "11 · ОФЛАЙН-БАЗА ИНДИКАТОРОВ",
                 "Подписанная база индикаторов",
                 "Обновления импортируются вручную из локального файла. PRO SEC проверяет подпись RSA, издателя, структуру записей и номер версии. Сетевых запросов нет."
             )

@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
                     scanning = scanning,
                     scanMessage = scanMessage,
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
-                    onDailyMonitoringChange = { enabled -> setDailyMonitoring(enabled) },
+                    onDailyMonitoringChange = { enabled -> if (!enabled) setDailyMonitoring(false) },
                     onRefresh = { refreshLatest() },
                     onScan = { enabled -> enqueueScan(enabled) }
                 )
@@ -452,6 +452,9 @@ private fun SecurityOverview(
     onScan: (Boolean) -> Unit
 ) {
     var showConsent by remember { mutableStateOf(false) }
+    var requestedDailyMonitoring by remember(dailyMonitoringEnabled) {
+        mutableStateOf(dailyMonitoringEnabled)
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -467,7 +470,7 @@ private fun SecurityOverview(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("PRO SEC", color = ProWhite, fontSize = 25.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
-                    Text("ANDROID SECURITY", color = ProMuted, fontSize = 10.sp, letterSpacing = 2.5.sp)
+                    Text("АУДИТ ANDROID", color = ProMuted, fontSize = 10.sp, letterSpacing = 2.5.sp)
                 }
                 Text("● ЛОКАЛЬНО", color = ProGreen, fontSize = 11.sp)
             }
@@ -513,13 +516,23 @@ private fun SecurityOverview(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Checkbox(
-                            checked = dailyMonitoringEnabled,
-                            onCheckedChange = onDailyMonitoringChange
+                            checked = requestedDailyMonitoring,
+                            onCheckedChange = { enabled ->
+                                requestedDailyMonitoring = enabled
+                                // Disabling is immediate. Enabling is only scheduled after consent.
+                                if (!enabled) onDailyMonitoringChange(false)
+                            }
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Ежедневный мониторинг", color = ProWhite, fontSize = 13.sp)
                             Text(
-                                "Плановая проверка примерно раз в 24 часа. Android может задерживать её.",
+                                when {
+                                    requestedDailyMonitoring && !dailyMonitoringEnabled ->
+                                        "Включится после подтверждения следующей проверки."
+                                    requestedDailyMonitoring ->
+                                        "Плановая проверка примерно раз в 24 часа. Android может задерживать её."
+                                    else -> "Выключен. Автоматические проверки не запланированы."
+                                },
                                 color = ProMuted,
                                 fontSize = 11.sp
                             )
@@ -619,23 +632,23 @@ private fun SecurityOverview(
 
     if (showConsent) {
         AlertDialog(
-            onDismissRequest = { showConsent = false },
+            onDismissRequest = { showConsent = false; requestedDailyMonitoring = dailyMonitoringEnabled },
             containerColor = ProPanel,
             title = { Text("Локальная проверка PRO SEC", color = ProWhite) },
             text = {
                 Text(
-                    "PRO SEC прочитает доступные сведения об установленных приложениях, чувствительных разрешениях, специальных доступах, администраторах, VPN, блокировке экрана и метаданных устройства. Отчёт останется на устройстве в зашифрованном виде; сетевой передачи нет. ${if (dailyMonitoringEnabled) "Вы также разрешаете плановые локальные проверки примерно раз в 24 часа. Их время зависит от Android и режима энергосбережения." else "Ежедневный мониторинг выключен; будет выполнена только разовая проверка."} Продолжить?",
+                    "PRO SEC прочитает доступные сведения об установленных приложениях, чувствительных разрешениях, специальных доступах, администраторах, VPN, блокировке экрана и метаданных устройства. Отчёт останется на устройстве в зашифрованном виде; сетевой передачи нет. ${if (requestedDailyMonitoring) "Вы также разрешаете плановые локальные проверки примерно раз в 24 часа. Их время зависит от Android и режима энергосбережения." else "Ежедневный мониторинг выключен; будет выполнена только разовая проверка."} Продолжить?",
                     color = ProMuted
                 )
             },
             confirmButton = {
-                Button(onClick = { showConsent = false; onScan(dailyMonitoringEnabled) }) {
+                Button(onClick = { showConsent = false; onScan(requestedDailyMonitoring) }) {
                     Text("СОГЛАСЕН И ПРОВЕРИТЬ")
                 }
             },
             dismissButton = {
                 Button(
-                    onClick = { showConsent = false },
+                    onClick = { showConsent = false; requestedDailyMonitoring = dailyMonitoringEnabled },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = ProPanel,
                         contentColor = ProWhite

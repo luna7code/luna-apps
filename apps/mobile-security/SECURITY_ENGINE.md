@@ -1,110 +1,126 @@
-# PRO SEC — security engine and killer features
+# PRO SEC — architecture and security-engine status
 
-## Product position
+## Product position and release state
 
-PRO SEC is a privacy-first Android security audit and pre-install triage tool. It is not marketed as a guaranteed full antivirus: ordinary third-party Android apps cannot inspect other apps' private memory or bypass platform isolation without privileged access.
+PRO SEC is a privacy-first Android security audit and pre-install triage application. It is not represented as a full antivirus or a guarantee that a device is clean. Ordinary third-party Android applications cannot inspect other apps' private memory, bypass Android app isolation, or enumerate every privileged/system process without root or privileged platform integration.
 
-Release direction: private APK distribution. Current development artifact is a debug APK; a stable private release must be signed with a persistent release key before installation/update cycles.
+Distribution target: private APK only. The current repository configuration remains version 0.3.0 and the CI artifact is a debug APK. A stable private release still requires a persistent release-signing key stored outside this repository and a separate release-build verification cycle. Do not treat a debug artifact as a release.
 
-## Current audit engine
+The primary device target is Huawei Pura 70. Physical-device verification has not yet been completed.
 
-- Installed-package inventory via Android PackageManager.
-- Heuristic flags for a small, explicit set of known remote-support products.
-- Review flags for apps requesting multiple sensitive permissions.
-- Debuggable-app indicator.
-- Enabled Accessibility service inventory from Settings.Secure.
-- Active notification-listener inventory from Settings.Secure.
-- Active device administrator inventory via DevicePolicyManager.
-- Active default-network VPN transport check via ConnectivityManager.
-- Per-app local fingerprint: package ID, label, version, last update time, signing certificate SHA-256, installer package provenance, and digest of requested/granted permission state.
-- Separate indication for multiple sensitive permissions currently marked as granted, distinct from merely requested permissions.
-- Explainable local Exposure Index (0–100) with bounded severity deductions and prioritized remediation actions; explicitly not a malware probability or a guarantee of safety.
-- Scan report encrypted with AES-GCM using an Android Keystore key.
-- Each new report is additionally HMAC-SHA256 sealed with a separate Android Keystore key and linked to the previous report tag (Forensic Seal).
-- On load, PRO SEC verifies the current report seal and links between adjacent records in the available history window. If a prior seal fails, the next scan does not use that payload as a trusted Change Sentinel baseline and starts a new chain with an explicit finding.
-- Room history bounded to the latest 90 reports; the Killer Features tab displays the latest eight timeline entries.
+## Compose interface
 
-## Killer Features tab
+- Shared Material 3 dark theme and monochrome palette: black background, near-black elevated surfaces, white primary content, restrained gray borders, muted amber/red severity accents.
+- Main overview: scan state, severity counts, scan metrics, consent flow, monitoring opt-in, exposure index and evidence-seal state.
+- Intelligence screen: control surfaces, change timeline, APK X-RAY, LINK MIRROR, input-method trust, device integrity and Pura Guard.
+- Cards use a common border/surface system and a compact hierarchy intended for the phone form factor.
+- The app interface is Russian-first; branded module names such as APK X-RAY and CHANGE SENTINEL remain product labels.
 
-### 1. CONTROL MAP
-Builds a local map of active Android control surfaces:
-- Accessibility services: can inspect screen UI and perform actions within Android's accessibility model.
-- Notification listeners: can receive notification content.
-- Device administrators: can apply the administrator policies exposed by Android.
-- VPN transport: shows whether the active default network uses a VPN.
-The map identifies mechanisms and packages where the platform exposes them. It does not infer that a listed app is malicious.
+## Device audit engine
 
-### 2. CHANGE SENTINEL
-Compares the current encrypted scan snapshot with the previous snapshot:
-- Newly installed and removed packages.
-- Version / update-time changes.
-- Signing certificate fingerprint changes.
-- Changes to requested or granted permission state.
-- Installer package information reported by Android for newly discovered packages.
-- Newly appearing audit finding IDs.
-First scan creates the baseline. A certificate change may be legitimate key rotation; new installation is not proof of malware.
+The scanner uses Android PackageManager and system settings exposed to ordinary applications.
 
-### 3. APK X-RAY
-Uses Android PackageManager to inspect a user-selected APK without installing or executing it:
-- Package name, version, target/min SDK.
-- Requested permissions.
-- Exported Activity/Service/Receiver/Provider count.
-- Debuggable, backup, and cleartext-traffic manifest flags.
-- SHA-256 digest of the APK.
-- SHA-256 fingerprints of signing certificates.
-- If the same package is already installed, compare the selected APK's current signer certificate with the installed package's current signer and flag a mismatch. Key-rotation lineage validation is not yet included; a legitimate signing-key rotation may require manual review.
-- Bounded DEX string/API-reference scan for sensitive capabilities such as Accessibility, notification listener, device administration, screen capture, dynamic DEX loading, SMS, package installation, VPN, window management, camera and location APIs.
-The DEX scan reads at most 16 DEX files and 64 MB of uncompressed DEX data. API references are capability indicators only; they are not proof that the code path executes or that the app is malicious.
-The APK is staged in app cache, with a 150 MB input limit, analyzed locally, and deleted afterwards. This remains static analysis, not dynamic sandboxing, full code decompilation, malware signature scanning, or proof of signer trust.
+- Installed-package inventory, application labels, version codes, last-update time and install-source metadata.
+- SHA-256 fingerprints for current signing certificates.
+- Digest of requested/granted permission state.
+- Separate interpretation of sensitive permissions merely requested versus permissions reported as granted.
+- Heuristics for a bounded list of recognized remote-support products. Their presence is an indicator to review, not evidence of malware.
+- Inventory of enabled Accessibility services, notification listeners, active device administrators and active VPN transport.
+- Declared Accessibility/notification-listener services are distinguished from services actually enabled in Android settings.
+- Debuggable third-party app flags and selected sensitive permissions.
+- Device integrity observations: secure lock-screen state and public build tags. ADB / Developer Options state is explicitly unavailable to ordinary third-party apps and is not reported as disabled.
+- Scan duration and app count are written to the report for device-specific performance tracking.
 
-### 4. LINK MIRROR
-Offline URL-structure inspection:
-- Plain HTTP, unusual URI schemes, user-info masking, Punycode, raw IPv4 hosts, URL shorteners, unusually deep subdomains, non-standard ports, and encoded path separators.
-No network request is made; domain reputation, DNS, redirects, and page contents are not checked. A clean structural result is not a safety verdict.
+Severity labels and the Exposure Index describe observed attack-surface indicators. They are not a malware probability. Requested permissions, declared services, API references and known remote-support packages may be legitimate and require context.
 
-### 5. TRUST TIMELINE
-Shows the latest eight local scan snapshots with finding counts and newly detected changes. The database retains at most 90 reports; each payload is encrypted locally.
+## APK X-RAY
 
-### 6. DEVICE INTEGRITY
-Checks whether Android reports a secure lock screen and whether public Build tags contain `test-keys`. It explicitly reports ADB / Developer Options as not observable from an ordinary third-party app: Android's public Settings.Global API returns zero for those keys to third-party callers. It does not pretend that this means debugging is disabled.
+APK X-RAY analyzes a user-selected APK locally without installing or executing it.
 
-### 7. INPUT TRUST
-Lists the currently enabled input methods and identifies the selected keyboard from Android's default input method setting. A keyboard can process typed content, but its presence is not proof of keylogging. Users can open Android's input-method settings to review or disable keyboards.
+- Package ID, version, version code, min/target SDK and file size.
+- Requested permissions and manifest flags such as debuggable, testOnly, backup and cleartext traffic.
+- Exported Activity, Service, Receiver and Provider components; the screen shows the declared component permission information available from PackageManager.
+- SHA-256 of the selected APK and current signer certificates.
+- If the same package is installed, compare the candidate APK with Android's signing information for the installed package.
+- On Android API 28+, use SigningInfo's platform-verified certificate history for single-signer packages. The history is in original-to-current rotation order. The comparison distinguishes exact match, platform-verified forward rotation, historical signer, mismatch and unknown. Multi-signer packages are compared as exact signer sets because Android does not provide a rotation history for that model.
+- On older supported Android API levels, only legacy signing information is available; no proof-of-rotation inference is made.
+- Bounded DEX API-reference scan for Accessibility, notification access, device administration, screen capture, dynamic DEX loading, SMS, call log, contacts, package installation, VPN, overlays, clipboard, camera, location, sensors and other selected APIs.
+- DEX analysis is capped at 24 DEX files and 96 MiB of uncompressed DEX data. The user sees the scan count, byte count, duration and any truncation reason.
+- Selected APK input is capped at 150 MiB, staged in app cache and deleted after analysis.
 
-### 8. EXPOSURE INDEX
-An explainable score computed from the current findings with bounded deductions by severity. The score only describes observed attack-surface exposure within PRO SEC's available coverage, not malware probability and not a general device safety verdict. Recommendations point to the relevant Android settings or application details screen; the app does not silently revoke permissions.
+A certificate chain match is not a reputation check for the publisher. A historical signer may indicate an older package or downgrade and needs review. DEX references show potential capabilities, not execution or intent. APK X-RAY is static inspection, not a dynamic sandbox, full decompiler or exhaustive malware scanner. Obfuscation, packers, native code and dynamically downloaded code can evade these heuristics.
 
-### 9. PURA GUARD
-Device-specific background reliability guide for Huawei Pura 70 / EMUI. It provides user-controlled shortcuts to Android app details and battery optimization settings, plus manual instructions for App launch, Run in background and locking the app in Recents. It does not silently disable battery protections or guarantee exact-time background execution.
+## Signed offline threat database
 
-## Privacy model
+PRO SEC supports a manually imported, signed offline indicator feed. No network fetch is performed.
 
-- No INTERNET permission is declared by the app.
-- No telemetry, account, cloud sync, or upload of scan results.
-- Package inventory, permission fingerprints and reports are stored locally; report payloads are encrypted before Room insertion and sealed with a device-bound HMAC chain.
-- APK X-RAY copies only a selected APK into app cache for local parsing and deletes the temporary file after analysis.
-- LINK MIRROR never opens or fetches the submitted URL.
-- Threat intelligence updates are not fetched from a server in strict-privacy mode. A later update path should accept a user-imported signed offline database and verify signature/version before activation.
+- The user imports an RSA X.509 SubjectPublicKeyInfo PEM public key from local storage.
+- The app validates the key structure and requires RSA 2048 bits or stronger.
+- Before pinning, the user must explicitly confirm that the displayed SHA-256 public-key fingerprint was compared against a value obtained through an independent trusted channel.
+- The private signing key remains offline and is never stored in the app or this repository.
+- Feed signature is SHA256withRSA over exact UTF-8/LF-framed content. Metadata, package names, optional APK/signer SHA-256 digests, severity, confidence, title and detail are strictly validated.
+- Feed size is capped at 4 MiB and indicator count at 20,000. Duplicate IDs, invalid hashes, malformed fields, unknown keys, altered content and older versions are rejected.
+- Imported feed data is encrypted locally with AES-GCM and written using AtomicFile. The saved version counter blocks ordinary import rollback.
+- Matching can require package ID only, or the stronger APK/signer hashes. APK files are hashed only for packages whose feed entries require an APK digest; the digest is computed once per package scan.
+- A match is an indicator requiring review, not proof of malicious execution.
 
-## Android / Huawei limitations
+No public-key trust root or threat feed is bundled by default. The feature remains inactive until the user pins the actual publisher key and imports a feed signed by that key. Full rollback protection against restoration of an older complete application-data image or device/Keystore compromise is not possible for an ordinary app.
 
-- Android 11+ filters package visibility by default. PRO SEC declares QUERY_ALL_PACKAGES because broad inventory is core to the audit function.
-- ACCESS_NETWORK_STATE is required for the VPN transport query. The app does not declare INTERNET.
-- Android can delay WorkManager work under Doze, battery saver and vendor background management. Huawei EMUI may suspend/terminate background apps unless the user adjusts App launch and battery settings. The daily interval is approximate, not a guaranteed alarm.
-- Pura Guard gives the user steps and shortcuts only; actual menu names differ by EMUI/HarmonyOS version and region.
+The exact feed format is documented in `THREAT_DATABASE_FORMAT.md`.
 
-## Current validation status
+## Change Sentinel and history integrity
 
-- CI currently builds debug APK, runs local JVM unit tests for URL heuristics, and runs Android Lint.
-- CI does not replace physical-device tests.
-- Still required: install/run on the target Pura 70, verify notification listener, Accessibility, input method and lock-screen discovery on-device, measure scan duration/battery/memory, exercise APK X-RAY with benign and intentionally malformed samples, and test WorkManager while screen-off / power-saver / app-swiped-away.
-- Android's Settings.Global ADB_ENABLED and DEVELOPMENT_SETTINGS_ENABLED are not usable as a third-party detection source: official API documentation specifies that both return 0 to third-party apps. Do not infer ADB-disabled from these values.
-- No malware signature database or dynamic sandbox is currently implemented.
+- Change Sentinel compares package install/removal, version/update metadata, signer fingerprints, permission-state digest and newly appearing audit findings.
+- A valid empty package inventory is compared normally; a missing inventory field is treated as unavailable data, not as an empty list.
+- Reports are encrypted with AES-GCM using an Android Keystore key. The payload codec uses a 12-byte nonce and a 128-bit authentication tag.
+- Each current report is separately sealed with HMAC-SHA256 using another Android Keystore key and references the previous tag.
+- Adjacent history links within the retained window are verified; legacy-to-new-chain transition is allowed only when the new chain starts with an empty predecessor.
+- Unreadable/malformed Room rows remain visible in the timeline with a failed integrity state rather than silently disappearing.
+- If the previous report cannot be decrypted or its seal is invalid, the next scan does not trust it as a Change Sentinel baseline. It starts a new chain and adds an explicit finding.
+- Room history is capped at 90 records; the overview reads a bounded recent window and the timeline displays the latest eight.
 
-## Next milestones
+The seal can detect payload modification and broken links in retained history. It cannot prove that the entire database was never deleted or rolled back to an older complete valid copy. Loss/rotation of Android Keystore keys can produce unverifiable seals without proving malicious tampering.
 
-1. Complete CI verification and resolve all compiler, test and lint findings.
-2. Add a signed offline threat package format with an app-pinned public key, version anti-rollback, strict schema validation, and explicit import confirmation.
-3. Implement deeper APK analysis: signing-certificate lineage validation, exported-component permission inspection, DEX/static indicators, and a known-good signer trust store.
-4. Add guided response actions that open precise Android settings pages without attempting to change another app's grants silently.
-5. Establish a persistent private release signing key and versioned APK release process; keep the signing key outside GitHub and the APK itself.
+## Other analysis modules
+
+### LINK MIRROR
+Offline URL structure review: scheme, user-info masking, Punycode, raw IPv4, URL shorteners, unusually deep subdomains, non-standard ports and encoded separators. It does not fetch DNS, reputation, redirects, page content or remote resources.
+
+### CONTROL MAP / INPUT TRUST
+Shows system control surfaces visible to the app: Accessibility, notification listeners, device administrators and VPN transport. Lists enabled input methods and the selected keyboard. A keyboard or enabled service is not proof of keylogging or malicious behavior.
+
+### EXPOSURE INDEX
+Explainable, bounded score from current findings and severity. It is not a probability of compromise or a safety guarantee. Recommendations open Android settings or app details; PRO SEC does not silently revoke another app's permissions.
+
+### PURA GUARD
+Device guidance for Huawei background reliability. It gives user-controlled routes and instructions for App launch, background activity and battery settings. It cannot override EMUI power management or guarantee exact-time WorkManager execution.
+
+## Privacy and platform permissions
+
+- No INTERNET permission.
+- No telemetry, account, cloud sync or upload of reports.
+- Scan results, pinned public key and imported feed stay in local app storage.
+- Reports and feed payload are encrypted locally; Android backup and device-transfer inclusion are disabled.
+- APK X-RAY reads only a user-selected file and removes its temporary cache copy after parsing.
+- LINK MIRROR never opens a submitted URL.
+- QUERY_ALL_PACKAGES is declared because full installed-app inventory is a core private-sideload feature.
+- ACCESS_NETWORK_STATE is used only to inspect whether the active default network reports VPN transport.
+
+## Background scheduling
+
+Daily monitoring is opt-in. Selecting it is a pending choice; the periodic WorkManager task is scheduled only after confirmation in the scan consent dialog. Turning an already enabled schedule off cancels it immediately. WorkManager's 24-hour periodic interval is approximate; Doze, battery saver and Huawei EMUI background controls can delay or suspend execution.
+
+## Validation state and remaining device work
+
+CI run 132 passed debug APK assembly, JVM unit tests, Android Lint and debug APK artifact upload. CI does not verify actual Huawei device behavior or prove malware detection completeness.
+
+Still required on the physical Pura 70:
+- cold/warm launch and Compose interaction review at the device's actual resolution/font scale;
+- scan duration, CPU, memory/PSS and battery measurements with a representative app inventory;
+- WorkManager behavior after screen-off, Doze, battery saver, app swipe-away and device restart;
+- Accessibility, notification listener, input method, device-admin and VPN observations against Android settings;
+- APK X-RAY tests with benign, malformed, multi-signer, key-rotation and split APK samples;
+- signed feed import with a real publisher key and known test indicators;
+- local database corruption/recovery scenarios and history-chain behavior after key loss.
+
+No dynamic sandbox, cloud reputation service, bundled malware signatures, root inspection, or guarantee against sophisticated spyware is currently implemented.
