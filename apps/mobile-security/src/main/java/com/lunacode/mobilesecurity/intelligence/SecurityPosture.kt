@@ -120,6 +120,41 @@ object SecurityPosture {
                     "Проверьте, действительно ли приложению нужен широкий доступ к общему хранилищу.",
                     "MEDIUM", packageName, "manage-storage"
                 )
+                finding.id.startsWith("app-op-camera-") -> result += PostureRecommendation(
+                    "Проверить доступ к камере",
+                    "Убедитесь, что приложение должно обращаться к камере. Если функция не нужна, отзовите разрешение в настройках приложения.",
+                    "MEDIUM", packageName
+                )
+                finding.id.startsWith("app-op-record-audio-") -> result += PostureRecommendation(
+                    "Проверить доступ к микрофону",
+                    "Убедитесь, что приложению действительно нужна запись звука; затем повторите аудит.",
+                    "MEDIUM", packageName
+                )
+                finding.id.startsWith("app-op-background-location-") -> result += PostureRecommendation(
+                    "Проверить геолокацию в фоне",
+                    "Фоновое местоположение может раскрывать перемещения даже без открытого приложения. Оставляйте доступ только при явной необходимости.",
+                    "MEDIUM", packageName
+                )
+                finding.id.startsWith("app-op-fine-location-") || finding.id.startsWith("app-op-coarse-location-") -> result += PostureRecommendation(
+                    "Проверить доступ к местоположению",
+                    "Сверьте точность и назначение геолокации с функциями приложения; отзовите ненужный доступ.",
+                    "MEDIUM", packageName
+                )
+                finding.id.startsWith("app-op-bluetooth-scan-") -> result += PostureRecommendation(
+                    "Проверить поиск Bluetooth-устройств",
+                    "Убедитесь, что поиск Bluetooth-устройств соответствует назначению приложения.",
+                    "LOW", packageName
+                )
+                finding.id.startsWith("app-op-post-notification-") -> result += PostureRecommendation(
+                    "Проверить право отправлять уведомления",
+                    "Отключите уведомления приложения, если они не нужны. Это не равно доступу к содержимому чужих уведомлений.",
+                    "LOW", packageName
+                )
+                finding.id.startsWith("app-op-read-media-") -> result += PostureRecommendation(
+                    "Проверить доступ к медиафайлам",
+                    "Проверьте, какие типы медиа нужны приложению, и отзовите лишние разрешения.",
+                    "LOW", packageName
+                )
                 finding.id.startsWith("debuggable-") -> result += PostureRecommendation(
                     "Проверить отладочную сборку",
                     "Проверьте источник установки и разработчика приложения. Обычные релизные приложения редко должны быть debuggable.",
