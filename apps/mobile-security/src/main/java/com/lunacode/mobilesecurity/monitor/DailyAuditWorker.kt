@@ -12,6 +12,8 @@ import com.lunacode.mobilesecurity.scanner.DeviceAuditScanner
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
 import com.lunacode.mobilesecurity.security.ReportEnvelopeCodec
+import com.lunacode.mobilesecurity.security.TrustedBaselineRead
+import com.lunacode.mobilesecurity.security.TrustedBaselineStore
 import kotlinx.coroutines.CancellationException
 
 class DailyAuditWorker(
@@ -65,7 +67,25 @@ class DailyAuditWorker(
                 )
             }
 
-            val snapshot = ChangeSentinel.enrich(previousReport, scanner.toJson(findings))
+            val trustedBaseline = TrustedBaselineStore.load(applicationContext)
+            if (trustedBaseline is TrustedBaselineRead.Invalid) {
+                findings += AuditFinding(
+                    id = "trusted-baseline-invalid",
+                    title = "Trusted Baseline не прошла проверку",
+                    detail = "Сохранённая пользовательская базовая точка не прошла проверку расшифровки или HMAC. Она не использована для сравнения; применена последняя проверенная запись истории, если она доступна.",
+                    severity = "HIGH",
+                    source = "TrustedBaselineStore"
+                )
+            }
+            val comparisonReport = when (trustedBaseline) {
+                is TrustedBaselineRead.Valid -> trustedBaseline.report
+                else -> previousReport
+            }
+            val snapshot = JSONObject(ChangeSentinel.enrich(comparisonReport, scanner.toJson(findings))).apply {
+                put("trustedBaselineActive", trustedBaseline is TrustedBaselineRead.Valid)
+                put("trustedBaselineInvalid", trustedBaseline is TrustedBaselineRead.Invalid)
+                put("trustedBaselineSavedAt", (trustedBaseline as? TrustedBaselineRead.Valid)?.savedAt ?: 0L)
+            }.toString()
             val tag = LocalEvidenceSeal.sign(
                 ReportEnvelopeCodec.material(previousTag, snapshot)
             )

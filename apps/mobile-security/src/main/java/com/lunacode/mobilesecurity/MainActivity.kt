@@ -56,6 +56,7 @@ import com.lunacode.mobilesecurity.intelligence.SecurityPosture
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
+import com.lunacode.mobilesecurity.security.TrustedBaselineStore
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
 import com.lunacode.mobilesecurity.security.HistoryChainRecord
 import com.lunacode.mobilesecurity.security.HistoryChainVerifier
@@ -104,7 +105,10 @@ private data class ScanReportUi(
     val posture: SecurityPostureReport,
     val integrityStatus: String,
     val scanDurationMs: Long,
-    val appCount: Int
+    val appCount: Int,
+    val trustedBaselineActive: Boolean,
+    val trustedBaselineInvalid: Boolean,
+    val trustedBaselineSavedAt: Long
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -133,7 +137,8 @@ class MainActivity : ComponentActivity() {
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
                     onDailyMonitoringChange = { enabled -> if (!enabled) setDailyMonitoring(false) },
                     onRefresh = { refreshLatest() },
-                    onScan = { enabled -> enqueueScan(enabled) }
+                    onScan = { enabled -> enqueueScan(enabled) },
+                    onSetTrustedBaseline = { saveTrustedBaseline() }
                 )
             }
         }
@@ -314,7 +319,10 @@ class MainActivity : ComponentActivity() {
                         posture = posture,
                         integrityStatus = latest.integrityStatus,
                         scanDurationMs = scanMetrics?.optLong("durationMs") ?: 0L,
-                        appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0
+                        appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0,
+                    trustedBaselineActive = json.optBoolean("trustedBaselineActive"),
+                    trustedBaselineInvalid = json.optBoolean("trustedBaselineInvalid"),
+                    trustedBaselineSavedAt = json.optLong("trustedBaselineSavedAt")
                     )
                 }
             }
@@ -333,6 +341,29 @@ class MainActivity : ComponentActivity() {
             }.onFailure {
                 report = null
                 scanMessage = "Не удалось прочитать локальный отчёт. Данные не удалены."
+            }
+        }
+    }
+
+    private fun saveTrustedBaseline() {
+        lifecycleScope.launch {
+            val savedAt = System.currentTimeMillis()
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    val record = ProSecDatabase.get(applicationContext).scanDao().latest()
+                        ?: return@withContext false
+                    val envelope = ReportEnvelopeCodec.decode(LocalPayloadCipher().decrypt(record.encryptedPayload))
+                    if (!envelope.wrapped || envelope.chainTag.isNullOrBlank() || envelope.report.isBlank()) return@withContext false
+                    if (!LocalEvidenceSeal.verify(ReportEnvelopeCodec.material(envelope.previousTag, envelope.report), envelope.chainTag)) return@withContext false
+                    TrustedBaselineStore.save(applicationContext, envelope.report)
+                    true
+                }.getOrDefault(false)
+            }
+            if (saved) {
+                report = report?.copy(trustedBaselineActive = true, trustedBaselineInvalid = false, trustedBaselineSavedAt = savedAt)
+                scanMessage = "Проверенный отчёт сохранён как Trusted Baseline. Он будет применён при следующем аудите."
+            } else {
+                scanMessage = "Не удалось сохранить Trusted Baseline: нет проверенного локального отчёта."
             }
         }
     }
@@ -387,7 +418,8 @@ private fun SecurityHome(
     dailyMonitoringEnabled: Boolean,
     onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: (Boolean) -> Unit
+    onScan: (Boolean) -> Unit,
+    onSetTrustedBaseline: () -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
@@ -436,7 +468,8 @@ private fun SecurityHome(
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
                     onDailyMonitoringChange = onDailyMonitoringChange,
                     onRefresh = onRefresh,
-                    onScan = onScan
+                    onScan = onScan,
+                    onSetTrustedBaseline = onSetTrustedBaseline
                 )
             } else {
                 KillerFeaturesScreen(
@@ -460,7 +493,8 @@ private fun SecurityOverview(
     dailyMonitoringEnabled: Boolean,
     onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: (Boolean) -> Unit
+    onScan: (Boolean) -> Unit,
+    onSetTrustedBaseline: () -> Unit
 ) {
     var showConsent by remember { mutableStateOf(false) }
     var requestedDailyMonitoring by remember(dailyMonitoringEnabled) {
@@ -614,8 +648,22 @@ private fun SecurityOverview(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("TRUSTED BASELINE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
-                        Text(if (report.firstBaseline) "Базовая точка ещё не создана" else "Сравнение с предыдущей проверкой активно", color = ProWhite, fontSize = 14.sp)
-                        Text("Изменений в последнем сравнении: ${report.changes.size}. База строится из локально сохранённого отчёта; отсутствие изменений не доказывает безопасность.", color = ProMuted, fontSize = 11.sp)
+                        Text(
+                            when {
+                                report.trustedBaselineInvalid -> "Пользовательская базовая точка повреждена или не прошла проверку"
+                                report.trustedBaselineActive -> "Сравнение с утверждённой Trusted Baseline активно"
+                                report.firstBaseline -> "Базовая точка ещё не создана"
+                                else -> "Сравнение с предыдущей проверкой; пользовательская база не утверждена"
+                            },
+                            color = if (report.trustedBaselineInvalid) ProAmber else ProWhite,
+                            fontSize = 14.sp
+                        )
+                        Text("Изменений относительно точки сравнения: ${report.changes.size}. Данные хранятся локально и защищены шифрованием и HMAC. Отсутствие изменений не доказывает безопасность.", color = ProMuted, fontSize = 11.sp)
+                        Button(
+                            onClick = onSetTrustedBaseline,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProSecPalette.Elevated, contentColor = ProWhite)
+                        ) { Text(if (report.trustedBaselineActive) "ОБНОВИТЬ TRUSTED BASELINE" else "УТВЕРДИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ") }
                     }
                 }
             }
