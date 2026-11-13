@@ -67,9 +67,12 @@ object ChangeSentinel {
     )
 
     private fun compare(previous: JSONObject, current: JSONObject): List<SentinelChange> {
-        val before = readApps(previous.optJSONArray("apps"))
-        val after = readApps(current.optJSONArray("apps"))
-        if (before.isEmpty() || after.isEmpty()) return emptyList()
+        // Missing inventory is different from a valid empty inventory.
+        // Skip comparison only when one report has no inventory field at all.
+        val beforeArray = previous.optJSONArray("apps") ?: return emptyList()
+        val afterArray = current.optJSONArray("apps") ?: return emptyList()
+        val before = readApps(beforeArray)
+        val after = readApps(afterArray)
 
         val changes = mutableListOf<SentinelChange>()
         (after.keys - before.keys).sorted().forEach { packageName ->
