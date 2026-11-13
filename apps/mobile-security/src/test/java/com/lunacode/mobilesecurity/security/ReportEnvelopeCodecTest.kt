@@ -32,7 +32,7 @@ class ReportEnvelopeCodecTest {
 
     @Test
     fun malformedSealedEnvelopeDoesNotDowngradeToLegacy() {
-        val decoded = ReportEnvelopeCodec.decode("PROSEC-CHAIN-1\\nnot-base64\\n\\ninvalid")
+        val decoded = ReportEnvelopeCodec.decode("PROSEC-CHAIN-1\nnot-base64\n\ninvalid")
         assertTrue(decoded.wrapped)
         assertNull(decoded.chainTag)
         assertEquals("", decoded.report)
