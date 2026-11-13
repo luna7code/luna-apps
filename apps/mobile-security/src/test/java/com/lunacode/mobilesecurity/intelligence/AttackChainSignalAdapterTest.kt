@@ -76,6 +76,20 @@ class AttackChainSignalAdapterTest {
     }
 
     @Test
+    fun correlatesNewlyInstalledAppWithCameraAppOpUsingExplicitPackageIdentity() {
+        val chains = AttackChainSignalAdapter.detect(
+            findings = listOf(AuditFinding(
+                "app-op-camera-com.example.camera", "Camera access allowed", "Allowed operation", "MEDIUM", "com.example.camera"
+            )),
+            changes = listOf(SentinelChange("installed", "Installed", "New app", "MEDIUM", "com.example.camera")),
+            observedAtMillis = 26_000L
+        )
+        assertEquals(1, chains.size)
+        assertEquals("com.example.camera", chains.single().packageName)
+        assertTrue(chains.single().explanation.contains("доступ"))
+    }
+
+    @Test
     fun ignoresSystemInputMethodWhenCorrelatingWithNotificationAccess() {
         val chains = AttackChainSignalAdapter.detect(
             findings = listOf(

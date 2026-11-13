@@ -15,14 +15,25 @@ object TrustedBaselineStore {
     private const val REPORT_KEY = "trusted_baseline_encrypted_v1"
     private const val SAVED_AT_KEY = "trusted_baseline_saved_at_v1"
 
-    fun save(context: Context, report: String, savedAt: Long = System.currentTimeMillis()) {
+    private fun isValidReport(report: String): Boolean = runCatching {
         val json = JSONObject(report)
-        require(json.optInt("schema") >= 2)
-        require(json.optJSONArray("apps") != null)
-        val tag = LocalEvidenceSeal.sign(ReportEnvelopeCodec.material("", report))
-        val encrypted = LocalPayloadCipher().encrypt(ReportEnvelopeCodec.encode("", report, tag))
-        context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-            .edit().putString(REPORT_KEY, encrypted).putLong(SAVED_AT_KEY, savedAt).apply()
+        json.optInt("schema") >= 2 && json.optJSONArray("apps") != null
+    }.getOrDefault(false)
+
+    fun save(context: Context, report: String, savedAt: Long = System.currentTimeMillis()) {
+        val envelope = TrustedBaselineCodec.encode(
+            report = report,
+            savedAt = savedAt,
+            validateReport = ::isValidReport,
+            sign = LocalEvidenceSeal::sign
+        )
+        val encrypted = LocalPayloadCipher().encrypt(envelope)
+        val persisted = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
+            .putString(REPORT_KEY, encrypted)
+            .putLong(SAVED_AT_KEY, savedAt)
+            .commit()
+        check(persisted) { "Trusted Baseline could not be persisted" }
     }
 
     fun load(context: Context): TrustedBaselineRead {
@@ -30,12 +41,13 @@ object TrustedBaselineStore {
         val encrypted = prefs.getString(REPORT_KEY, null) ?: return TrustedBaselineRead.Absent
         val savedAt = prefs.getLong(SAVED_AT_KEY, 0L)
         return runCatching {
-            val envelope = ReportEnvelopeCodec.decode(LocalPayloadCipher().decrypt(encrypted))
-            require(envelope.wrapped && !envelope.chainTag.isNullOrBlank() && envelope.report.isNotBlank())
-            require(LocalEvidenceSeal.verify(ReportEnvelopeCodec.material(envelope.previousTag, envelope.report), envelope.chainTag))
-            val json = JSONObject(envelope.report)
-            require(json.optInt("schema") >= 2 && json.optJSONArray("apps") != null)
-            TrustedBaselineRead.Valid(envelope.report, savedAt)
+            val decrypted = LocalPayloadCipher().decrypt(encrypted)
+            TrustedBaselineCodec.decode(
+                payload = decrypted,
+                savedAt = savedAt,
+                validateReport = ::isValidReport,
+                verify = LocalEvidenceSeal::verify
+            )
         }.getOrElse { TrustedBaselineRead.Invalid }
     }
 }
