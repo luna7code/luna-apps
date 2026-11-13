@@ -110,6 +110,10 @@ data class ApkXRayReport(
     val installedSignerMatch: Boolean?,
     val requestedPermissions: List<String>,
     val exportedComponents: Int,
+    val dexSignals: List<String>,
+    val dexFilesScanned: Int,
+    val dexBytesScanned: Long,
+    val dexScanTruncated: Boolean,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
 )
@@ -178,6 +182,7 @@ object ApkXRay {
             info.services.orEmpty().count { it.exported } +
             info.receivers.orEmpty().count { it.exported } +
             info.providers.orEmpty().count { it.exported })
+        val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
 
         val risks = mutableListOf<ApkRisk>()
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
@@ -224,6 +229,10 @@ object ApkXRay {
             installedSignerMatch = signerMatch,
             requestedPermissions = requested,
             exportedComponents = exported,
+            dexSignals = dexScan?.signals.orEmpty(),
+            dexFilesScanned = dexScan?.dexFilesScanned ?: 0,
+            dexBytesScanned = dexScan?.bytesScanned ?: 0L,
+            dexScanTruncated = dexScan?.truncated ?: true,
             risks = risks,
             fileSizeBytes = file.length()
         )
