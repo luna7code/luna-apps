@@ -127,7 +127,7 @@ internal object ElfMetadataParser {
         val needed = mutableListOf<String>()
         if (stringTableValid) {
             tags.filter { it.first == DT_NEEDED }.take(MAX_NEEDED).forEach { (_, index) ->
-                readCString(bytes, strtabOffset!! + index, strtabOffset + strsz)?.let { needed += it }
+                readCString(bytes, strtabOffset!! + index, strtabOffset!! + strsz)?.let { needed += it }
                     ?: run { warnings += "DT_NEEDED string offset is invalid" }
             }
         }
