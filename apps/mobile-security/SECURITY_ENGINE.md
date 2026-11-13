@@ -20,6 +20,8 @@ Release direction: private APK distribution. Current development artifact is a d
 - Separate indication for multiple sensitive permissions currently marked as granted, distinct from merely requested permissions.
 - Explainable local Exposure Index (0–100) with bounded severity deductions and prioritized remediation actions; explicitly not a malware probability or a guarantee of safety.
 - Scan report encrypted with AES-GCM using an Android Keystore key.
+- Each new report is additionally HMAC-SHA256 sealed with a separate Android Keystore key and linked to the previous report tag (Forensic Seal).
+- On load, PRO SEC verifies the current report seal and links between adjacent records in the available history window. If a prior seal fails, the next scan does not use that payload as a trusted Change Sentinel baseline and starts a new chain with an explicit finding.
 - Room history bounded to the latest 90 reports; the Killer Features tab displays the latest eight timeline entries.
 
 ## Killer Features tab
@@ -79,7 +81,7 @@ Device-specific background reliability guide for Huawei Pura 70 / EMUI. It provi
 
 - No INTERNET permission is declared by the app.
 - No telemetry, account, cloud sync, or upload of scan results.
-- Package inventory, permission fingerprints and reports are stored locally; report payloads are encrypted before Room insertion.
+- Package inventory, permission fingerprints and reports are stored locally; report payloads are encrypted before Room insertion and sealed with a device-bound HMAC chain.
 - APK X-RAY copies only a selected APK into app cache for local parsing and deletes the temporary file after analysis.
 - LINK MIRROR never opens or fetches the submitted URL.
 - Threat intelligence updates are not fetched from a server in strict-privacy mode. A later update path should accept a user-imported signed offline database and verify signature/version before activation.
