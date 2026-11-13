@@ -136,6 +136,7 @@ data class ApkXRayReport(
     val nestedApkEntries: List<String>,
     val archiveWarnings: List<String>,
     val archiveTruncated: Boolean,
+    val binaryManifest: BinaryManifestInspection?,
     val threatIndicators: List<ThreatIndicator>,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
@@ -210,6 +211,16 @@ object ApkXRay {
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
         val stringScan = runCatching { StaticStringIndicatorScanner.scan(file) }.getOrNull()
         val archiveScan = runCatching { ApkArchiveInspector.inspect(file) }.getOrNull()
+        val binaryManifest = runCatching {
+            java.util.zip.ZipFile(file).use { zip ->
+                val entry = zip.getEntry("AndroidManifest.xml") ?: return@use null
+                if (entry.size !in 1..(2L * 1024L * 1024L)) return@use null
+                val bytes = zip.getInputStream(entry).use {
+                    StaticStringIndicatorScanner.readBounded(it, 2L * 1024L * 1024L)
+                }
+                AndroidBinaryManifestInspector.inspect(bytes)
+            }
+        }.getOrNull()
         val feedIndicators = ThreatDatabaseStore(context).loadVerified()
             ?.byPackageName?.get(packageName).orEmpty()
         val threatMatches = ThreatIndicatorMatcher.match(
@@ -276,6 +287,16 @@ object ApkXRay {
         archiveScan?.suspiciousArchiveEntries.orEmpty().forEach { warning ->
             risks += ApkRisk("Подозрительная структура ZIP", warning, "MEDIUM")
         }
+        binaryManifest?.intentFilters.orEmpty().filter { it.autoVerify }.forEach { filter ->
+            risks += ApkRisk(
+                "Android App Link · autoVerify",
+                "Компонент ${filter.component}; host: ${filter.hosts.joinToString().ifBlank { "не указан" }}; schemes: ${filter.schemes.joinToString()}. Это декларация в манифесте, не доказательство успешной верификации домена Android.",
+                "INFO"
+            )
+        }
+        if (binaryManifest?.parseWarnings.orEmpty().isNotEmpty()) {
+            risks += ApkRisk("Binary manifest прочитан частично", binaryManifest!!.parseWarnings.joinToString("; "), "INFO")
+        }
         if (archiveScan?.truncated == true) {
             risks += ApkRisk("Архивный анализ ограничен", "Достигнут лимит числа записей, распакованного размера или размера native-библиотек. Непроверенные части неизвестны.", "INFO")
         }
@@ -339,6 +360,7 @@ object ApkXRay {
             nestedApkEntries = archiveScan?.nestedApkEntries.orEmpty(),
             archiveWarnings = archiveScan?.suspiciousArchiveEntries.orEmpty(),
             archiveTruncated = archiveScan?.truncated ?: true,
+            binaryManifest = binaryManifest,
             threatIndicators = threatMatches,
             risks = risks,
             fileSizeBytes = file.length()
