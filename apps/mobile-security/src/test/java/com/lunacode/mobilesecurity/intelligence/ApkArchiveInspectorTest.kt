@@ -3,6 +3,7 @@ package com.lunacode.mobilesecurity.intelligence
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.random.Random
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -52,6 +53,38 @@ class ApkArchiveInspectorTest {
             file.writeBytes("not a zip".toByteArray())
             assertThrows(Exception::class.java) { ApkArchiveInspector.inspect(file) }
         } finally { file.delete() }
+    }
+
+    @Test
+    fun malformedElfInputsNeverEscapeBoundsChecks() {
+        val random = Random(0x50524f)
+        repeat(512) { iteration ->
+            val bytes = ByteArray(random.nextInt(0, 4096))
+            random.nextBytes(bytes)
+            if (bytes.size >= 4) {
+                bytes[0] = 0x7f
+                bytes[1] = 0x45
+                bytes[2] = 0x4c
+                bytes[3] = 0x46
+            }
+            val result = ApkArchiveInspector.parseElf("lib/arm64-v8a/fuzz$iteration.so", bytes)
+            assertNotNull(result)
+        }
+    }
+
+    @Test
+    fun reportsZipBombRatioAndCanonicalDuplicatePaths() {
+        val repeated = ByteArray(2 * 1024 * 1024)
+        val apk = archive(
+            "a/../payload.bin" to repeated,
+            "payload.bin" to byteArrayOf(1, 2, 3)
+        )
+        try {
+            val report = ApkArchiveInspector.inspect(apk)
+            assertTrue(report.suspiciousArchiveEntries.any { it.contains("High compression ratio") })
+            assertTrue(report.suspiciousArchiveEntries.any { it.contains("Duplicate ZIP path") })
+            assertTrue(report.suspiciousArchiveEntries.any { it.contains("Unsafe archive path") })
+        } finally { apk.delete() }
     }
 
     private fun elf64Arm64(): ByteArray = ByteArray(64).also {
