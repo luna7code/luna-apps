@@ -756,7 +756,7 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
                 "В проверенных ограниченных записях не обнаружены HTTP(S)-адреса. Обфускация, динамическая сборка URL и непроверенные данные могут скрыть адреса."
             )
         } else {
-            InfoCard("Извлечённые URL (${report.extractedUrls.size})", report.extractedUrls.joinToString("\\n"))
+            InfoCard("Извлечённые URL (${report.extractedUrls.size})", report.extractedUrls.joinToString("\n"))
         }
         if (report.stringFindings.isNotEmpty()) {
             report.stringFindings.forEach { finding ->
