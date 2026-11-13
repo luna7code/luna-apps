@@ -106,6 +106,8 @@ data class ApkXRayReport(
     val minSdk: Int,
     val apkSha256: String,
     val signerSha256: List<String>,
+    val installedVersionName: String?,
+    val installedSignerMatch: Boolean?,
     val requestedPermissions: List<String>,
     val exportedComponents: Int,
     val risks: List<ApkRisk>,
@@ -159,7 +161,27 @@ object ApkXRay {
         val app = info.applicationInfo ?: throw IllegalArgumentException("В APK отсутствует ApplicationInfo.")
         val packageName = info.packageName.orEmpty()
         val requested = info.requestedPermissions.orEmpty().toList()
-        val signers = getSigners(info).map { sha256(it.toByteArray()) }
+        val signerCertificates = getSigners(info)
+        val signers = signerCertificates.map { sha256(it.toByteArray()) }
+        val installedInfo = readInstalledPackageInfo(pm, packageName)
+        val installedSigners = installedInfo?.let { getSigners(it) }.orEmpty()
+        val signerMatch = if (installedInfo == null || signerCertificates.isEmpty() || installedSigners.isEmpty()) {
+            null
+        } else {
+            val sameCertificate = signerCertificates.any { candidate ->
+                installedSigners.any { installed -> candidate.toByteArray().contentEquals(installed.toByteArray()) }
+            }
+            val validLineage = if (!sameCertificate && Build.VERSION.SDK_INT >= 28) {
+                val candidateSigningInfo = info.signingInfo
+                installedSigners.any { installed ->
+                    candidateSigningInfo?.hasSigningCertificate(
+                        installed.toByteArray(),
+                        android.content.pm.SigningInfo.CERT_INPUT_RAW_X509
+                    ) == true
+                }
+            } else false
+            sameCertificate || validLineage
+        }
         val exported = (info.activities.orEmpty().count { it.exported } +
             info.services.orEmpty().count { it.exported } +
             info.receivers.orEmpty().count { it.exported } +
@@ -191,6 +213,13 @@ object ApkXRay {
         if (signers.isEmpty()) {
             risks += ApkRisk("Сертификат подписи не прочитан", "Не удалось извлечь сертификат APK. Сравнение издателя недоступно.", "MEDIUM")
         }
+        if (installedInfo != null && signerMatch == false) {
+            risks += ApkRisk(
+                "Подпись отличается от установленного приложения",
+                "Пакет уже установлен, но сертификат APK не совпал с текущей подписью или доступной цепочкой ротации. Не устанавливайте обновление, пока не проверите издателя.",
+                "HIGH"
+            )
+        }
         return ApkXRayReport(
             packageName = packageName,
             versionName = info.versionName.orEmpty(),
@@ -199,11 +228,27 @@ object ApkXRay {
             minSdk = app.minSdkVersion,
             apkSha256 = sha256(file),
             signerSha256 = signers,
+            installedVersionName = installedInfo?.versionName,
+            installedSignerMatch = signerMatch,
             requestedPermissions = requested,
             exportedComponents = exported,
             risks = risks,
             fileSizeBytes = file.length()
         )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun readInstalledPackageInfo(pm: PackageManager, packageName: String): PackageInfo? {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                pm.getPackageInfo(
+                    packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
+                )
+            } else {
+                pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            }
+        }.getOrNull()
     }
 
     @Suppress("DEPRECATION")
