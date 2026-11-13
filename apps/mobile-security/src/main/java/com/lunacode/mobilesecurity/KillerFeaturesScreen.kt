@@ -62,7 +62,8 @@ data class KillerChangeUi(
 @Composable
 fun KillerFeaturesScreen(
     changes: List<KillerChangeUi>,
-    firstBaseline: Boolean
+    firstBaseline: Boolean,
+    hasReport: Boolean
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -167,6 +168,7 @@ fun KillerFeaturesScreen(
                 "Сравнивает текущий снимок с предыдущим: новые и удалённые приложения, обновления и смену сертификата подписи. Данные остаются зашифрованными в локальной истории."
             )
             when {
+                !hasReport -> InfoCard("Нет базового снимка", "Сначала запустите проверку на вкладке «Обзор». Первый отчёт создаст исходную точку для сравнения.")
                 firstBaseline -> InfoCard("Базовый снимок создан", "Первый отчёт становится точкой отсчёта. После следующего сканирования появятся реальные различия.")
                 changes.isEmpty() -> InfoCard("Изменения не обнаружены", "В последнем сравнении нет отличий в составе приложений или новых индикаторов.")
                 else -> {
