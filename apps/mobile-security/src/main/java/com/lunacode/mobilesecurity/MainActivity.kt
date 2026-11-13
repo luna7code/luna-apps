@@ -289,6 +289,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val posture = SecurityPosture.evaluate(postureFindings)
+                    val trustedBaselineState = TrustedBaselineStore.load(applicationContext)
                     val scanMetrics = json.optJSONObject("scanMetrics")
                     val sentinel = ChangeSentinel.read(json)
                     val changes = sentinel.changes.map {
@@ -320,9 +321,9 @@ class MainActivity : ComponentActivity() {
                         integrityStatus = latest.integrityStatus,
                         scanDurationMs = scanMetrics?.optLong("durationMs") ?: 0L,
                         appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0,
-                    trustedBaselineActive = json.optBoolean("trustedBaselineActive"),
-                    trustedBaselineInvalid = json.optBoolean("trustedBaselineInvalid"),
-                    trustedBaselineSavedAt = json.optLong("trustedBaselineSavedAt")
+                    trustedBaselineActive = trustedBaselineState is com.lunacode.mobilesecurity.security.TrustedBaselineRead.Valid,
+                    trustedBaselineInvalid = trustedBaselineState is com.lunacode.mobilesecurity.security.TrustedBaselineRead.Invalid,
+                    trustedBaselineSavedAt = (trustedBaselineState as? com.lunacode.mobilesecurity.security.TrustedBaselineRead.Valid)?.savedAt ?: 0L
                     )
                 }
             }
@@ -621,10 +622,11 @@ private fun SecurityOverview(
                 val granted = report.findings.count { it.id.startsWith("granted-permissions-") }
                 val requested = report.findings.count { it.id.startsWith("permissions-") }
                 val special = report.findings.count {
-                    it.id.startsWith("accessibility-") && it.id != "accessibility-none" ||
-                        it.id.startsWith("notification-listener-") && it.id != "notification-listener-none" ||
-                        it.id.startsWith("admin-") && it.id != "admin-none" ||
-                        it.id.startsWith("input-method-") && it.id != "input-method-none"
+                    (it.id.startsWith("accessibility-") && it.id != "accessibility-none") ||
+                        (it.id.startsWith("notification-listener-") && it.id != "notification-listener-none") ||
+                        (it.id.startsWith("admin-") && it.id != "admin-none") ||
+                        (it.id.startsWith("input-method-") && it.id != "input-method-none") ||
+                        it.id.startsWith("app-op-")
                 }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -634,7 +636,7 @@ private fun SecurityOverview(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("PERMISSION INTELLIGENCE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
-                        Text("Выданные разрешения: $granted · широкие запросы: $requested · специальные доступы: $special", color = ProWhite, fontSize = 13.sp)
+                        Text("Выданные разрешения: $granted · широкие запросы: $requested · специальные доступы и AppOps: $special", color = ProWhite, fontSize = 13.sp)
                         Text("Запрошенные разрешения не равны выданным. Специальные доступы показываются отдельно; доступность данных зависит от версии Android и производителя.", color = ProMuted, fontSize = 11.sp)
                     }
                 }
@@ -651,6 +653,7 @@ private fun SecurityOverview(
                         Text(
                             when {
                                 report.trustedBaselineInvalid -> "Пользовательская базовая точка повреждена или не прошла проверку"
+                                report.trustedBaselineActive && report.trustedBaselineSavedAt > report.scannedAt -> "Trusted Baseline сохранена; будет применена при следующем аудите"
                                 report.trustedBaselineActive -> "Сравнение с утверждённой Trusted Baseline активно"
                                 report.firstBaseline -> "Базовая точка ещё не создана"
                                 else -> "Сравнение с предыдущей проверкой; пользовательская база не утверждена"
@@ -728,7 +731,7 @@ private fun SecurityOverview(
             AuditModule(
                 "02",
                 "Специальные доступы",
-                "Включённые службы Accessibility и активные администраторы"
+                "Accessibility, Notification Listener, клавиатуры, AppOps и активные администраторы"
             )
         }
         item { AuditModule("03", "Сетевые подключения", "Обнаружение активного VPN-транспорта") }

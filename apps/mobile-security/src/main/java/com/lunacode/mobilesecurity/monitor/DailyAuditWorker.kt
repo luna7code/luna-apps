@@ -15,6 +15,7 @@ import com.lunacode.mobilesecurity.security.ReportEnvelopeCodec
 import com.lunacode.mobilesecurity.security.TrustedBaselineRead
 import com.lunacode.mobilesecurity.security.TrustedBaselineStore
 import kotlinx.coroutines.CancellationException
+import org.json.JSONObject
 
 class DailyAuditWorker(
     appContext: Context,
