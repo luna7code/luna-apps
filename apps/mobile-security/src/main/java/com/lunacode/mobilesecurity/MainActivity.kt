@@ -366,7 +366,8 @@ private fun SecurityHome(
                     firstBaseline = report?.firstBaseline ?: true,
                     hasReport = report != null,
                     history = report?.history.orEmpty(),
-                    postureReport = report?.posture
+                    postureReport = report?.posture,
+                    integrityStatus = report?.integrityStatus ?: "LEGACY"
                 )
             }
         }
@@ -459,6 +460,9 @@ private fun SecurityOverview(
         }
         item {
             report?.let { SecurityPostureCard(it.posture, compact = true) }
+        }
+        item {
+            report?.let { EvidenceSealCard(it.integrityStatus, compact = true) }
         }
         if (report != null && report.changes.isNotEmpty()) {
             item {
