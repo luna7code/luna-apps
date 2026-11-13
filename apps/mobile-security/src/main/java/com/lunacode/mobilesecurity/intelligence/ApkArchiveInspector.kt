@@ -111,7 +111,7 @@ object ApkArchiveInspector {
         // Bounded string scan only. It does not parse or resolve relocations or execute code.
         val text = bytes.copyOfRange(0, minOf(bytes.size, MAX_STRING_BYTES))
             .toString(Charsets.ISO_8859_1)
-        val sonames = Regex("""lib[A-Za-z0-9_.+-]{1,100}\\.so(?:\\.[0-9]+)*""")
+        val sonames = Regex("""lib[A-Za-z0-9_.+-]{1,100}\.so(?:\.[0-9]+)*""")
             .findAll(text).map { it.value }.distinct().take(40).toList()
         if (sonames.any { it.contains("frida", true) || it.contains("substrate", true) }) {
             warnings += "Instrumentation-related library name string"
