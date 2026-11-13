@@ -126,3 +126,52 @@ fun SecurityPostureCard(
         }
     }
 }
+
+
+@Composable
+fun EvidenceSealCard(
+    status: String,
+    compact: Boolean = false
+) {
+    val (label, detail, accent) = when (status) {
+        "VERIFIED" -> Triple(
+            "HMAC ПОДТВЕРЖДЁН",
+            "Подпись текущего отчёта проверена. Связи между доступными соседними записями истории совпадают.",
+            PostureGreen
+        )
+        "FAILED" -> Triple(
+            "ПРОВЕРКА НЕ ПРОЙДЕНА",
+            "Подпись или связь между записями не совпала. Возможны изменение истории или смена/потеря ключа устройства. Это не позволяет автоматически утверждать, что данные подделаны.",
+            PostureRed
+        )
+        "LEGACY" -> Triple(
+            "СТАРЫЙ ОТЧЁТ",
+            "Отчёт создан до внедрения Forensic Seal и не содержит HMAC-подписи.",
+            PostureMuted
+        )
+        "UNSEALED" -> Triple(
+            "НЕТ КРИПТОГРАФИЧЕСКОЙ ПЕЧАТИ",
+            "Запись содержит формат цепочки, но не содержит корректной HMAC-подписи.",
+            PostureAmber
+        )
+        else -> Triple(
+            "НЕ УДАЛОСЬ ПРОВЕРИТЬ",
+            "Android Keystore не смог подтвердить HMAC. Проверьте состояние локального ключа и не считайте запись проверенной.",
+            PostureAmber
+        )
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = PosturePanel)
+    ) {
+        Column(
+            modifier = Modifier.padding(if (compact) 14.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("FORENSIC SEAL", color = PostureMuted, fontSize = 10.sp, letterSpacing = 2.sp)
+            Text(label, color = accent, fontSize = 12.sp, letterSpacing = 1.sp)
+            Text(detail, color = PostureMuted, fontSize = 11.sp)
+        }
+    }
+}
