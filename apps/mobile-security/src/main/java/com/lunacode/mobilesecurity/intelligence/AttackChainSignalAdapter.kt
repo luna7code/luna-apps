@@ -3,9 +3,9 @@ package com.lunacode.mobilesecurity.intelligence
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 
 /**
- * Converts observed Change Sentinel deltas and currently enabled access findings
- * into correlation evidence. A current-state finding is timestamped at scan time;
- * this does not claim to know when the access was originally enabled.
+ * Converts Change Sentinel deltas and current-state findings into correlation
+ * evidence. A current-state finding is timestamped at scan time; this does not
+ * claim to know when the access was originally enabled.
  */
 object AttackChainSignalAdapter {
     fun detect(
@@ -14,6 +14,7 @@ object AttackChainSignalAdapter {
         observedAtMillis: Long,
         windowMillis: Long = 72L * 60L * 60L * 1000L
     ): List<AttackChain> {
+        if (observedAtMillis < 0L) return emptyList()
         val signals = mutableListOf<ThreatSignal>()
 
         changes.forEachIndexed { index, change ->
@@ -30,7 +31,8 @@ object AttackChainSignalAdapter {
                 type = type,
                 occurredAtMillis = observedAtMillis,
                 severity = change.level,
-                summary = change.title
+                summary = change.title,
+                evidenceQuality = EvidenceQuality.DIRECT_CHANGE
             )
         }
 
@@ -47,11 +49,29 @@ object AttackChainSignalAdapter {
                 finding.id.startsWith("app-op-") -> finding.source.takeIf { it.isNotBlank() }
                 else -> null
             }?.takeIf { it.isNotBlank() } ?: return@forEach
-            if ((finding.id.startsWith("input-method-") || finding.id.startsWith("app-op-")) && finding.severity == "INFO") return@forEach
+
+            if ((finding.id.startsWith("input-method-") || finding.id.startsWith("app-op-")) &&
+                finding.severity == "INFO"
+            ) return@forEach
+
+            // For AppOps the package identity comes from the adapter's explicit source field.
+            // Never correlate an AppOps finding whose source disagrees with its encoded ID.
+            if (finding.id.startsWith("app-op-")) {
+                val idPackage = finding.id.substringAfterLast('-')
+                if (idPackage.contains('.') && idPackage != packageName) return@forEach
+            }
+
             val type = when {
                 finding.id.startsWith("notification-listener-") -> ThreatSignalType.NOTIFICATION_ACCESS_ENABLED
                 finding.id.startsWith("input-method-") -> ThreatSignalType.INPUT_METHOD_ENABLED
                 finding.id.startsWith("app-op-overlay-") -> ThreatSignalType.OVERLAY_ACCESS_ENABLED
+                finding.id.startsWith("app-op-camera-") -> ThreatSignalType.APP_OP_CAMERA
+                finding.id.startsWith("app-op-record_audio-") -> ThreatSignalType.APP_OP_MICROPHONE
+                finding.id.startsWith("app-op-fine_location-") ||
+                    finding.id.startsWith("app-op-coarse_location-") -> ThreatSignalType.APP_OP_LOCATION
+                finding.id.startsWith("app-op-background_location-") -> ThreatSignalType.APP_OP_BACKGROUND_LOCATION
+                finding.id.startsWith("app-op-bluetooth_scan-") -> ThreatSignalType.APP_OP_BLUETOOTH
+                finding.id.startsWith("app-op-read_media_") -> ThreatSignalType.APP_OP_MEDIA
                 else -> ThreatSignalType.SPECIAL_ACCESS_ENABLED
             }
             signals += ThreatSignal(
@@ -60,7 +80,8 @@ object AttackChainSignalAdapter {
                 type = type,
                 occurredAtMillis = observedAtMillis,
                 severity = finding.severity,
-                summary = finding.title
+                summary = finding.title,
+                evidenceQuality = EvidenceQuality.CURRENT_STATE
             )
         }
         return AttackChainDetector.detect(signals, windowMillis)

@@ -21,72 +21,38 @@ data class ReportEnvelope(
 object ReportEnvelopeCodec {
     private const val PREFIX = "PROSEC-CHAIN-1"
 
-    /**
-     * Pure-JVM framing keeps this codec testable outside Android.
-     * Each field is URL-safe Base64, so the four-line envelope is unambiguous.
-     */
+    /** Pure-JVM framing keeps this codec testable outside Android. */
     fun encode(previousTag: String, report: String, chainTag: String): String {
         val encoder = JavaBase64.getUrlEncoder().withoutPadding()
         fun field(value: String): String =
             encoder.encodeToString(value.toByteArray(StandardCharsets.UTF_8))
-        return listOf(
-            PREFIX,
-            field(previousTag),
-            field(chainTag),
-            field(report)
-        ).joinToString("\n")
+        return listOf(PREFIX, field(previousTag), field(chainTag), field(report)).joinToString("\n")
     }
 
     fun decode(stored: String): ReportEnvelope {
         if (stored.startsWith("$PREFIX\n")) {
             val fields = stored.split('\n')
-            if (fields.size != 4 || fields[0] != PREFIX) {
-                return malformedEnvelope()
-            }
-
+            if (fields.size != 4 || fields[0] != PREFIX) return malformedEnvelope()
             return runCatching {
                 val decoder = JavaBase64.getUrlDecoder()
-                fun field(value: String): String =
-                    String(decoder.decode(value), StandardCharsets.UTF_8)
-
+                fun field(value: String): String = String(decoder.decode(value), StandardCharsets.UTF_8)
                 val previousTag = field(fields[1])
                 val chainTag = field(fields[2]).takeIf { it.isNotBlank() }
                     ?: error("Missing Forensic Seal HMAC")
                 val report = field(fields[3])
                 require(report.isNotBlank()) { "Missing sealed report payload" }
-                ReportEnvelope(
-                    report = report,
-                    previousTag = previousTag,
-                    chainTag = chainTag,
-                    wrapped = true
-                )
-            }.getOrElse {
-                malformedEnvelope()
-            }
+                ReportEnvelope(report, previousTag, chainTag, true)
+            }.getOrElse { malformedEnvelope() }
         }
-
-        // Previous versions stored a raw JSON report. Any non-JSON payload
-        // is treated as malformed instead of silently downgraded to legacy.
         if (stored.trimStart().startsWith("{")) {
-            return ReportEnvelope(
-                report = stored,
-                previousTag = "",
-                chainTag = null,
-                wrapped = false
-            )
+            return ReportEnvelope(stored, "", null, false)
         }
         return malformedEnvelope()
     }
 
-    private fun malformedEnvelope() = ReportEnvelope(
-        report = "",
-        previousTag = "",
-        chainTag = null,
-        wrapped = true
-    )
+    private fun malformedEnvelope() = ReportEnvelope("", "", null, true)
 
-    fun material(previousTag: String, report: String): String =
-        previousTag + "\n" + report
+    fun material(previousTag: String, report: String): String = previousTag + "\n" + report
 }
 
 object LocalEvidenceSeal {
@@ -96,24 +62,32 @@ object LocalEvidenceSeal {
     fun sign(material: String): String {
         val mac = Mac.getInstance(TRANSFORMATION)
         mac.init(getOrCreateKey())
-        return Base64.encodeToString(
-            mac.doFinal(material.toByteArray(Charsets.UTF_8)),
-            Base64.NO_WRAP
-        )
+        return Base64.encodeToString(mac.doFinal(material.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
     }
 
-    fun verify(material: String, encodedTag: String): Boolean {
+    /**
+     * Verification is deliberately fail-closed: a missing Keystore key must
+     * never be recreated during verification, because a replacement key cannot
+     * authenticate evidence sealed by the lost key.
+     */
+    fun verify(material: String, encodedTag: String): Boolean = runCatching {
+        val key = getExistingKey()
+        if (!EvidenceKeyVerificationPolicy.canVerify(keyPresent = key != null, signaturePresent = encodedTag.isNotBlank())) return false
         val expected = Base64.decode(encodedTag, Base64.NO_WRAP)
+        val verifiedKey = key ?: return false
         val mac = Mac.getInstance(TRANSFORMATION)
-        mac.init(getOrCreateKey())
+        mac.init(verifiedKey)
         val actual = mac.doFinal(material.toByteArray(Charsets.UTF_8))
-        return MessageDigest.isEqual(expected, actual)
+        MessageDigest.isEqual(expected, actual)
+    }.getOrDefault(false)
+
+    private fun getExistingKey(): SecretKey? {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
     }
 
     private fun getOrCreateKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-
+        getExistingKey()?.let { return it }
         val generator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_HMAC_SHA256,
             "AndroidKeyStore"

@@ -5,17 +5,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AttackChainDetectorTest {
-    private fun signal(id: String, type: ThreatSignalType, at: Long,
-        packageName: String? = "com.example.app", severity: String = "MEDIUM") =
-        ThreatSignal(id, packageName, type, at, severity, id)
+    private fun signal(
+        id: String,
+        type: ThreatSignalType,
+        at: Long,
+        packageName: String? = "com.example.app",
+        severity: String = "MEDIUM",
+        quality: EvidenceQuality = EvidenceQuality.DIRECT_CHANGE
+    ) = ThreatSignal(id, packageName, type, at, severity, id, quality)
 
-    @Test fun correlatesNewInstallWithSpecialAccess() {
+    @Test fun correlatesNewInstallWithSensitiveCameraAccess() {
         val result = AttackChainDetector.detect(listOf(
             signal("install", ThreatSignalType.APP_INSTALLED, 1_000L),
-            signal("access", ThreatSignalType.SPECIAL_ACCESS_ENABLED, 2_000L, severity = "HIGH")
+            signal("camera", ThreatSignalType.APP_OP_CAMERA, 2_000L, severity = "HIGH")
         ))
         assertEquals(1, result.size)
         assertEquals(78, result.single().confidenceScore)
+        assertEquals(100, result.single().evidenceQualityScore)
         assertEquals("HIGH", result.single().severity)
     }
 
@@ -53,6 +59,16 @@ class AttackChainDetectorTest {
         assertTrue(result.isEmpty())
     }
 
+    @Test fun rejectsNegativeAndFutureOverflowProneTimestamps() {
+        val result = AttackChainDetector.detect(listOf(
+            signal("negative", ThreatSignalType.APP_INSTALLED, -1L),
+            signal("access", ThreatSignalType.SPECIAL_ACCESS_ENABLED, 2L),
+            signal("install", ThreatSignalType.APP_INSTALLED, Long.MAX_VALUE),
+            signal("mic", ThreatSignalType.APP_OP_MICROPHONE, Long.MAX_VALUE)
+        ))
+        assertTrue(result.isEmpty())
+    }
+
     @Test fun ignoresSignalsWithoutPackageIdentity() {
         val result = AttackChainDetector.detect(listOf(
             signal("install", ThreatSignalType.APP_INSTALLED, 1_000L, null),
@@ -73,12 +89,33 @@ class AttackChainDetectorTest {
         assertTrue(AttackChainDetector.detect(emptyList(), -1L).isEmpty())
     }
 
-    @Test fun deduplicatesSignalIds() {
+    @Test fun deduplicatesRepeatedSignalIdsAndIgnoresRepeatedSameType() {
         val result = AttackChainDetector.detect(listOf(
             signal("same", ThreatSignalType.APP_INSTALLED, 1_000L),
             signal("same", ThreatSignalType.APP_INSTALLED, 1_000L),
-            signal("access", ThreatSignalType.SPECIAL_ACCESS_ENABLED, 2_000L)
+            signal("install-again", ThreatSignalType.APP_INSTALLED, 1_100L),
+            signal("access", ThreatSignalType.APP_OP_CAMERA, 2_000L)
         ))
-        assertEquals(1, result.single().signals.count { it.id == "same" })
+        assertTrue(result.isNotEmpty())
+        assertEquals(1, result.first().signals.count { it.id == "same" })
+        assertTrue(result.first().signals.count { it.type == ThreatSignalType.APP_INSTALLED } <= 2)
+    }
+
+    @Test fun evidenceQualityIsReportedSeparatelyFromRuleStrength() {
+        val result = AttackChainDetector.detect(listOf(
+            signal("install", ThreatSignalType.APP_INSTALLED, 1_000L, quality = EvidenceQuality.DIRECT_CHANGE),
+            signal("camera", ThreatSignalType.APP_OP_CAMERA, 2_000L, quality = EvidenceQuality.CURRENT_STATE)
+        ))
+        assertEquals(78, result.single().confidenceScore)
+        assertEquals(82, result.single().evidenceQualityScore)
+    }
+
+    @Test fun inferredEvidenceCannotUpgradeRuleStrength() {
+        val result = AttackChainDetector.detect(listOf(
+            signal("install", ThreatSignalType.APP_INSTALLED, 1_000L, quality = EvidenceQuality.INFERRED),
+            signal("camera", ThreatSignalType.APP_OP_CAMERA, 2_000L, quality = EvidenceQuality.INFERRED)
+        ))
+        assertEquals(78, result.single().confidenceScore)
+        assertEquals(30, result.single().evidenceQualityScore)
     }
 }
