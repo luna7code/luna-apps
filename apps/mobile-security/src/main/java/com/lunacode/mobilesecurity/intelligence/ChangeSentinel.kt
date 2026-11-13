@@ -61,6 +61,7 @@ object ChangeSentinel {
         val label: String,
         val version: String,
         val signer: String,
+        val permissions: String,
         val updatedAt: Long
     )
 
@@ -98,6 +99,13 @@ object ChangeSentinel {
                     "Отпечаток сертификата подписи отличается от предыдущего снимка. Это может быть легитимная смена ключа, но требует проверки.",
                     "HIGH"
                 )
+            } else if (old.permissions.isNotBlank() && new.permissions.isNotBlank() && old.permissions != new.permissions) {
+                changes += SentinelChange(
+                    "permissions_changed",
+                    "Изменились разрешения приложения: ${new.label}",
+                    "Состав запрошенных или предоставленных разрешений отличается от предыдущего снимка. Проверьте, какие возможности добавлены или сняты.",
+                    "MEDIUM"
+                )
             } else if (old.version != new.version || old.updatedAt != new.updatedAt) {
                 changes += SentinelChange(
                     "updated",
@@ -132,6 +140,7 @@ object ChangeSentinel {
                 label = app.optString("label", packageName),
                 version = app.optString("version", ""),
                 signer = app.optString("signerSha256", ""),
+                permissions = app.optString("permissionsSha256", ""),
                 updatedAt = app.optLong("lastUpdateTime")
             )
         }
