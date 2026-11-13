@@ -21,7 +21,9 @@ class ApkArchiveInspectorTest {
         val result = ApkArchiveInspector.parseElf("lib/arm64-v8a/libsample.so", bytes)
         assertEquals("AArch64", result.machineName)
         assertEquals(2, result.elfClass)
-        assertTrue(result.warnings.isEmpty())
+        assertNull(result.hasExecutableStack)
+        assertNull(result.hasTextRelocations)
+        assertTrue(result.warnings.any { it.contains("PT_GNU_STACK is absent") })
     }
 
     @Test
@@ -90,6 +92,7 @@ class ApkArchiveInspectorTest {
     private fun elf64Arm64(): ByteArray = ByteArray(64).also {
         it[0] = 0x7f; it[1] = 69; it[2] = 76; it[3] = 70
         it[4] = 2; it[5] = 1; it[18] = 183.toByte()
+        it[52] = 64; it[54] = 56
     }
 
     private fun archive(vararg entries: Pair<String, ByteArray>): File {
