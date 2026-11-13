@@ -352,7 +352,7 @@ fun KillerFeaturesScreen(
             FeatureHeader(
                 "07 · APK X-RAY",
                 "Рентген APK до установки",
-                "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256 файла и отпечатки сертификатов. Файл не устанавливается."
+                "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256, отпечатки сертификатов и ограниченный набор DEX API-сигналов. Файл не устанавливается."
             )
             Button(
                 onClick = { apkPicker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) },
@@ -523,6 +523,26 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             "Отпечатки сертификатов",
             if (report.signerSha256.isEmpty()) "Сертификат подписи не прочитан." else report.signerSha256.joinToString("\n")
         )
+        InfoCard(
+            "DEX-анализ возможностей",
+            "Просмотрено DEX-файлов: ${report.dexFilesScanned} · Данных: ${report.dexBytesScanned / 1024} KB" +
+                if (report.dexScanTruncated) "\nАнализ ограничен лимитом размера или числа файлов." else ""
+        )
+        if (report.dexSignals.isEmpty()) {
+            InfoCard(
+                "DEX API-индикаторы не найдены",
+                "В просмотренных DEX-данных не обнаружены проверяемые API-ссылки. Это не доказывает отсутствие таких возможностей: код может быть обфусцирован, упакован или загружаться динамически."
+            )
+        } else {
+            report.dexSignals.forEach { signal ->
+                FeatureCard(
+                    "ССЫЛКА НА API",
+                    signal,
+                    "В DEX обнаружена ссылка на эту системную возможность. Легитимные приложения тоже могут её использовать; нужен контекст кода и назначение приложения.",
+                    KillerAmber
+                )
+            }
+        }
         if (report.risks.isEmpty()) {
             InfoCard("Явные статические индикаторы не найдены", "Это не подтверждает безопасность APK. Анализ ограничен метаданными и манифестом.")
         } else {
