@@ -31,6 +31,14 @@ class ReportEnvelopeCodecTest {
     }
 
     @Test
+    fun malformedSealedEnvelopeDoesNotDowngradeToLegacy() {
+        val decoded = ReportEnvelopeCodec.decode("PROSEC-CHAIN-1\\nnot-base64\\n\\ninvalid")
+        assertTrue(decoded.wrapped)
+        assertNull(decoded.chainTag)
+        assertEquals("", decoded.report)
+    }
+
+    @Test
     fun signatureMaterialBindsPreviousTagAndReport() {
         val report = """{"schema":2}"""
         val first = ReportEnvelopeCodec.material("tag-a", report)
