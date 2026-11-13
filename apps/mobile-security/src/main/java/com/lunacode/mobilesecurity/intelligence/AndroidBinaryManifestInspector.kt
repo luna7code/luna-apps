@@ -55,11 +55,11 @@ object AndroidBinaryManifestInspector {
             val declaredSize = u32(buffer, 4)
             require(declaredSize in 8..bytes.size) { "Invalid binary XML size" }
             var offset = u16(buffer, 2)
-            while (offset + 8 <= declaredSize) {
+            while (offset >= 0 && offset.toLong() + 8L <= declaredSize.toLong()) {
                 val type = u16(buffer, offset)
                 val headerSize = u16(buffer, offset + 2)
                 val chunkSize = u32(buffer, offset + 4)
-                if (headerSize < 8 || chunkSize < headerSize || offset + chunkSize > declaredSize) {
+                if (headerSize < 8 || chunkSize < headerSize || chunkSize <= 0 || offset.toLong() + chunkSize.toLong() > declaredSize.toLong()) {
                     warnings += "Invalid XML chunk bounds"
                     break
                 }
@@ -158,7 +158,7 @@ object AndroidBinaryManifestInspector {
 
     private fun readStringPool(buffer: ByteBuffer, offset: Int, chunkSize: Int): List<String> {
         if (chunkSize < 28) return emptyList()
-        val count = u32(buffer, offset + 8).coerceIn(0, 100_000)
+        val count = u32(buffer, offset + 8).coerceIn(0, 20_000)
         val flags = u32(buffer, offset + 16)
         val stringsStart = u32(buffer, offset + 20)
         val headerSize = u16(buffer, offset + 2)
@@ -168,9 +168,11 @@ object AndroidBinaryManifestInspector {
             val indexAt = offset + headerSize + i * 4
             if (indexAt + 4 > offset + chunkSize) break
             val relative = buffer.getInt(indexAt)
-            val start = offset + stringsStart + relative
-            if (start < offset || start >= offset + chunkSize) { result += ""; continue }
-            result += if (utf8) readUtf8(buffer, start, offset + chunkSize) else readUtf16(buffer, start, offset + chunkSize)
+            val startLong = offset.toLong() + stringsStart.toLong() + relative.toLong()
+            val endLong = offset.toLong() + chunkSize.toLong()
+            if (startLong < offset.toLong() || startLong >= endLong || startLong > Int.MAX_VALUE) { result += ""; continue }
+            val start = startLong.toInt()
+            result += if (utf8) readUtf8(buffer, start, endLong.toInt()) else readUtf16(buffer, start, endLong.toInt())
         }
         return result
     }
