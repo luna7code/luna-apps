@@ -29,10 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import com.lunacode.mobilesecurity.intelligence.ApkRisk
 import com.lunacode.mobilesecurity.intelligence.ApkXRay
 import com.lunacode.mobilesecurity.intelligence.ApkXRayReport
 import com.lunacode.mobilesecurity.intelligence.ControlSurface
