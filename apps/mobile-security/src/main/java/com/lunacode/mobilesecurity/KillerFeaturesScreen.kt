@@ -343,6 +343,18 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             report.packageName,
             "Версия: ${report.versionName} (${report.versionCode})\nTarget SDK: ${report.targetSdk} · Min SDK: ${report.minSdk}\nРазмер: ${report.fileSizeBytes / 1024} KB\nЭкспортируемых компонентов: ${report.exportedComponents}\nРазрешений в манифесте: ${report.requestedPermissions.size}"
         )
+        InfoCard(
+            "Проверка обновления / цепочки подписи",
+            when (report.installedSignerMatch) {
+                true -> "Пакет уже установлен (версия ${report.installedVersionName.orEmpty()}). Сертификат APK совпадает с установленной подписью или её подтверждённой цепочкой ротации."
+                false -> "Пакет уже установлен (версия ${report.installedVersionName.orEmpty()}), но подпись не совпала. Не устанавливайте этот файл до проверки издателя."
+                null -> if (report.installedVersionName == null) {
+                    "Это новый пакет либо установленная версия не найдена. Сравнить обновление с установленным приложением нельзя."
+                } else {
+                    "Пакет найден, но сертификат одной из версий не удалось сравнить."
+                }
+            }
+        )
         InfoCard("SHA-256 APK", report.apkSha256)
         Button(
             onClick = { onCopy(report.apkSha256) },
