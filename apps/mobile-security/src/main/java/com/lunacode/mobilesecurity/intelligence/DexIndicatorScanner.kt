@@ -54,11 +54,17 @@ object DexIndicatorScanner {
         var truncated = false
         var limitReason: String? = null
         ZipFile(apkFile).use { zip ->
-            val allEntries = zip.entries().asSequence()
-                .filter { !it.isDirectory && it.name.endsWith(".dex", ignoreCase = true) }
-                .toList()
-            val entries = allEntries.take(MAX_DEX_FILES)
-            if (allEntries.size > MAX_DEX_FILES) {
+            val entries = mutableListOf<java.util.zip.ZipEntry>()
+            var hasAdditionalDexEntries = false
+            val archiveEntries = zip.entries()
+            while (archiveEntries.hasMoreElements()) {
+                val entry = archiveEntries.nextElement()
+                if (!entry.isDirectory && entry.name.endsWith(".dex", ignoreCase = true)) {
+                    if (entries.size < MAX_DEX_FILES) entries += entry
+                    else hasAdditionalDexEntries = true
+                }
+            }
+            if (hasAdditionalDexEntries) {
                 truncated = true
                 limitReason = "Превышен лимит числа DEX-файлов ($MAX_DEX_FILES)."
             }
@@ -74,7 +80,9 @@ object DexIndicatorScanner {
                     found += result.first
                     totalBytes += result.second
                     dexCount++
-                    if (entry.size >= 0L && entry.size > result.second) {
+                    if ((entry.size >= 0L && entry.size > result.second) ||
+                        (totalBytes >= MAX_TOTAL_DEX_BYTES && entry.size != result.second)
+                    ) {
                         truncated = true
                         limitReason = "Чтение остановлено по лимиту объёма DEX-данных."
                     }

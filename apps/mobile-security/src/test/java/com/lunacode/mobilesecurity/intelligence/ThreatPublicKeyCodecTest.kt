@@ -18,7 +18,11 @@ class ThreatPublicKeyCodecTest {
         val parsed = ThreatPublicKeyCodec.parse("luna-code-primary", pem)
         assertEquals("luna-code-primary", parsed.keyId)
         assertEquals(Base64.getEncoder().encodeToString(pair.public.encoded), parsed.publicKeyBase64)
-        assertEquals(95, parsed.sha256Fingerprint.split(":").size)
+        assertEquals(32, parsed.sha256Fingerprint.split(":").size)
+        val expectedFingerprint = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(pair.public.encoded)
+            .joinToString(":") { "%02X".format(it) }
+        assertEquals(expectedFingerprint, parsed.sha256Fingerprint)
     }
 
     @Test

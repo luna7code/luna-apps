@@ -160,15 +160,15 @@ class DeviceAuditScanner(
                 )
             }
 
-            threatDatabase?.byPackageName?.get(packageName).orEmpty().forEach { indicator ->
+            val packageIndicators = threatDatabase?.byPackageName?.get(packageName).orEmpty()
+            val apkHashForIndicators = if (packageIndicators.any { it.apkSha256 != null }) {
+                runCatching { sha256(File(appInfo.sourceDir)) }.getOrNull()
+            } else null
+            packageIndicators.forEach { indicator ->
                 val signerMatches = indicator.signerSha256 == null ||
                     signerDigests.any { it.equals(indicator.signerSha256, ignoreCase = true) }
-                val apkMatches = if (indicator.apkSha256 == null) {
-                    true
-                } else {
-                    runCatching { sha256(File(appInfo.sourceDir)) }
-                        .getOrNull()?.equals(indicator.apkSha256, ignoreCase = true) == true
-                }
+                val apkMatches = indicator.apkSha256 == null ||
+                    apkHashForIndicators?.equals(indicator.apkSha256, ignoreCase = true) == true
                 if (signerMatches && apkMatches) {
                     findings += AuditFinding(
                         id = "offline-threat-${indicator.id}",
