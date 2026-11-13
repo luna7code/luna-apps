@@ -49,7 +49,7 @@ Uses Android PackageManager to inspect a user-selected APK without installing or
 - Debuggable, backup, and cleartext-traffic manifest flags.
 - SHA-256 digest of the APK.
 - SHA-256 fingerprints of signing certificates.
-- If the same package is already installed, compare the selected APK signer with the installed package signer / available signing-certificate lineage and flag a mismatch.
+- If the same package is already installed, compare the selected APK's current signer certificate with the installed package's current signer and flag a mismatch. Key-rotation lineage validation is not yet included; a legitimate signing-key rotation may require manual review.
 The APK is staged in app cache, with a 150 MB input limit, analyzed locally, and deleted afterwards. This is static manifest/metadata triage, not dynamic sandboxing, full code decompilation, malware signature scanning, or proof of signer trust.
 
 ### 4. LINK MIRROR
