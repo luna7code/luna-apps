@@ -2,6 +2,7 @@ package com.lunacode.mobilesecurity.scanner
 
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -9,8 +10,11 @@ import android.os.Build
 import android.provider.Settings
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 class DeviceAuditScanner(private val context: Context) {
+    private var appInventory: JSONArray = JSONArray()
+
     fun scan(): List<AuditFinding> {
         val findings = mutableListOf<AuditFinding>()
         scanInstalledApps(findings)
@@ -29,12 +33,16 @@ class DeviceAuditScanner(private val context: Context) {
 
     private fun scanInstalledApps(findings: MutableList<AuditFinding>) {
         val pm = context.packageManager
+        val flags = PackageManager.GET_PERMISSIONS.toLong() or
+            if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES.toLong()
+            else PackageManager.GET_SIGNATURES.toLong()
         val packages = if (Build.VERSION.SDK_INT >= 33) {
-            pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+            pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(flags))
         } else {
             @Suppress("DEPRECATION")
-            pm.getInstalledPackages(PackageManager.GET_PERMISSIONS)
+            pm.getInstalledPackages(flags.toInt())
         }
+
         val knownRemoteTools = mapOf(
             "com.anydesk.anydeskandroid" to "AnyDesk",
             "com.teamviewer.host.market" to "TeamViewer Host",
@@ -44,24 +52,36 @@ class DeviceAuditScanner(private val context: Context) {
             "com.rsupport.mvagent" to "Remote support agent",
             "com.realvnc.viewer.android" to "VNC Viewer"
         )
+
+        appInventory = JSONArray()
         packages.forEach { info ->
             val packageName = info.packageName ?: return@forEach
             val appInfo = info.applicationInfo ?: return@forEach
             val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
-            val isSystem = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
-            val knownRemote = knownRemoteTools[packageName]
-            if (knownRemote != null) {
+            val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+            val signer = signerFingerprints(info).joinToString(",")
+
+            appInventory.put(JSONObject().apply {
+                put("packageName", packageName)
+                put("label", label)
+                put("version", "${info.versionName.orEmpty()}:${versionCode(info)}")
+                put("signerSha256", signer)
+                put("lastUpdateTime", info.lastUpdateTime)
+            })
+
+            knownRemoteTools[packageName]?.let { remoteName ->
                 findings += AuditFinding(
                     id = "remote-$packageName",
                     title = "Приложение удалённого доступа: $label",
-                    detail = "$knownRemote обнаружено среди доступных приложений. Само наличие не означает заражение: проверьте, устанавливали ли вы его и кому предоставляли доступ.",
+                    detail = "$remoteName обнаружено среди доступных приложений. Само наличие не означает заражение: проверьте, устанавливали ли вы его и кому предоставляли доступ.",
                     severity = "MEDIUM",
                     source = packageName
                 )
             }
+
             val requested = info.requestedPermissions.orEmpty().toSet()
             val sensitive = requested.intersect(SENSITIVE_PERMISSIONS)
-            if (sensitive.size >= 3 && !isSystem) {
+            if (sensitive.size >= 3 && !systemApp) {
                 findings += AuditFinding(
                     id = "permissions-$packageName",
                     title = "Широкий набор чувствительных разрешений: $label",
@@ -70,7 +90,7 @@ class DeviceAuditScanner(private val context: Context) {
                     source = packageName
                 )
             }
-            if (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && !isSystem) {
+            if (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && !systemApp) {
                 findings += AuditFinding(
                     id = "debuggable-$packageName",
                     title = "Отладочная сборка приложения: $label",
@@ -83,10 +103,28 @@ class DeviceAuditScanner(private val context: Context) {
         findings += AuditFinding(
             id = "apps-count",
             title = "Анализ приложений завершён",
-            detail = "Видимых приложений: ${packages.size}. Список обрабатывается только локально.",
+            detail = "Видимых приложений: ${packages.size}. Список и отпечатки подписи обрабатываются только локально.",
             severity = "INFO",
             source = "PackageManager"
         )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun versionCode(info: PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+
+    @Suppress("DEPRECATION")
+    private fun signerFingerprints(info: PackageInfo): List<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= 28) {
+            info.signingInfo?.apkContentsSigners?.toList().orEmpty()
+        } else {
+            info.signatures?.toList().orEmpty()
+        }
+        return signatures.map { signature ->
+            MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+                .joinToString("") { "%02X".format(it) }
+        }
     }
 
     private fun scanAccessibility(findings: MutableList<AuditFinding>) {
@@ -166,11 +204,12 @@ class DeviceAuditScanner(private val context: Context) {
             })
         }
         return JSONObject().apply {
-            put("schema", 1)
+            put("schema", 2)
             put("product", "PRO SEC")
             put("scannedAt", System.currentTimeMillis())
             put("findingCount", findings.size)
             put("findings", array)
+            put("apps", appInventory)
         }.toString()
     }
 
