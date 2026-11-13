@@ -44,12 +44,16 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.lunacode.mobilesecurity.data.ProSecDatabase
+import com.lunacode.mobilesecurity.data.ScanRecord
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
 import com.lunacode.mobilesecurity.intelligence.SecurityPosture
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
+import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
+import com.lunacode.mobilesecurity.security.ReportEnvelope
+import com.lunacode.mobilesecurity.security.ReportEnvelopeCodec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,7 +84,8 @@ private data class ScanReportUi(
     val changes: List<KillerChangeUi>,
     val firstBaseline: Boolean,
     val history: List<KillerHistoryUi>,
-    val posture: SecurityPostureReport
+    val posture: SecurityPostureReport,
+    val integrityStatus: String
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -154,11 +159,49 @@ class MainActivity : ComponentActivity() {
                     val dao = ProSecDatabase.get(applicationContext).scanDao()
                     val cipher = LocalPayloadCipher()
                     val decoded = dao.recent(8).mapNotNull { record ->
-                        runCatching { record to JSONObject(cipher.decrypt(record.encryptedPayload)) }.getOrNull()
+                        runCatching {
+                            val envelope = ReportEnvelopeCodec.decode(
+                                cipher.decrypt(record.encryptedPayload)
+                            )
+                            val integrityStatus = when {
+                                !envelope.wrapped -> "LEGACY"
+                                envelope.chainTag == null -> "UNSEALED"
+                                else -> {
+                                    val verification = runCatching {
+                                        LocalEvidenceSeal.verify(
+                                            ReportEnvelopeCodec.material(envelope.previousTag, envelope.report),
+                                            envelope.chainTag
+                                        )
+                                    }
+                                    when {
+                                        verification.isFailure -> "UNVERIFIABLE"
+                                        verification.getOrNull() == true -> "VERIFIED"
+                                        else -> "FAILED"
+                                    }
+                                }
+                            }
+                            DecodedScanRecord(
+                                record = record,
+                                json = JSONObject(envelope.report),
+                                envelope = envelope,
+                                integrityStatus = integrityStatus
+                            )
+                        }.getOrNull()
+                    }
+                    val chronological = decoded.asReversed()
+                    for (index in 1 until chronological.size) {
+                        val older = chronological[index - 1]
+                        val newer = chronological[index]
+                        val olderTag = older.envelope.chainTag
+                        if (olderTag != null && newer.envelope.chainTag != null &&
+                            newer.envelope.previousTag != olderTag
+                        ) {
+                            newer.integrityStatus = "FAILED"
+                        }
                     }
                     val latest = decoded.firstOrNull() ?: return@runCatching null
-                    val record = latest.first
-                    val json = latest.second
+                    val record = latest.record
+                    val json = latest.json
                     val schema = json.optInt("schema", 1)
                     require(schema in 1..2) { "Unsupported report schema" }
                     val array = json.optJSONArray("findings")
@@ -178,26 +221,35 @@ class MainActivity : ComponentActivity() {
                         }
                     }.sortedBy { severityOrder(it.severity) }
 
-                    val posture = SecurityPosture.evaluate(
-                        findings.map { finding ->
-                            AuditFinding(
-                                id = finding.id,
-                                title = finding.title,
-                                detail = finding.detail,
-                                severity = finding.severity,
-                                source = finding.source
-                            )
-                        }
-                    )
+                    val postureFindings = findings.map { finding ->
+                        AuditFinding(
+                            id = finding.id,
+                            title = finding.title,
+                            detail = finding.detail,
+                            severity = finding.severity,
+                            source = finding.source
+                        )
+                    }.toMutableList()
+                    if (latest.integrityStatus == "FAILED") {
+                        postureFindings += AuditFinding(
+                            id = "evidence-chain-failed",
+                            title = "Целостность цепочки отчётов не подтверждена",
+                            detail = "Одна из проверок HMAC или связности соседних записей не прошла. Это может указывать на изменение истории или смену/потерю локального ключа; проверьте статус и происхождение резервной копии.",
+                            severity = "HIGH",
+                            source = "LocalEvidenceSeal"
+                        )
+                    }
+                    val posture = SecurityPosture.evaluate(postureFindings)
                     val sentinel = ChangeSentinel.read(json)
                     val changes = sentinel.changes.map {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
                     }
-                    val history = decoded.map { (scanRecord, scanJson) ->
+                    val history = decoded.map { scan ->
                         KillerHistoryUi(
-                            scannedAt = scanRecord.scannedAt,
-                            findingCount = scanJson.optInt("findingCount"),
-                            changeCount = scanJson.optInt("changeCount")
+                            scannedAt = scan.record.scannedAt,
+                            findingCount = scan.json.optInt("findingCount"),
+                            changeCount = scan.json.optInt("changeCount"),
+                            integrityStatus = scan.integrityStatus
                         )
                     }
                     ScanReportUi(
@@ -206,7 +258,8 @@ class MainActivity : ComponentActivity() {
                         changes = changes,
                         firstBaseline = schema < 2 || sentinel.isFirstBaseline,
                         history = history,
-                        posture = posture
+                        posture = posture,
+                        integrityStatus = latest.integrityStatus
                     )
                 }
             }
