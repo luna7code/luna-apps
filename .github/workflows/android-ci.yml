@@ -40,6 +40,8 @@ jobs:
           gradle-version: "8.14.3"
       - name: Build debug APK
         run: gradle :apps:mobile-security:assembleDebug
+      - name: Run Android unit tests
+        run: gradle :apps:mobile-security:testDebugUnitTest
       - name: Run Android Lint
         run: gradle :apps:mobile-security:lintDebug
       - name: Upload debug APK
