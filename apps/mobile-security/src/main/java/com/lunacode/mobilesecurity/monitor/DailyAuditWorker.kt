@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.lunacode.mobilesecurity.data.ProSecDatabase
 import com.lunacode.mobilesecurity.data.ScanRecord
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
+import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.scanner.DeviceAuditScanner
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
@@ -24,11 +25,42 @@ class DailyAuditWorker(
                 runCatching { cipher.decrypt(record.encryptedPayload) }.getOrNull()
             }
             val previousEnvelope = previousStored?.let { ReportEnvelopeCodec.decode(it) }
-            val previousReport = previousEnvelope?.report
-            val previousTag = previousEnvelope?.chainTag.orEmpty()
+            val previousVerified = previousEnvelope?.let { envelope ->
+                if (!envelope.wrapped || envelope.chainTag == null) {
+                    false
+                } else {
+                    runCatching {
+                        LocalEvidenceSeal.verify(
+                            ReportEnvelopeCodec.material(envelope.previousTag, envelope.report),
+                            envelope.chainTag
+                        )
+                    }.getOrDefault(false)
+                }
+            }
+            val previousReport = when {
+                previousEnvelope == null -> null
+                !previousEnvelope.wrapped -> previousEnvelope.report
+                previousVerified == true -> previousEnvelope.report
+                else -> null
+            }
+            val previousTag = if (previousVerified == true) {
+                previousEnvelope?.chainTag.orEmpty()
+            } else {
+                ""
+            }
 
             val scanner = DeviceAuditScanner(applicationContext)
-            val findings = scanner.scan()
+            val findings = scanner.scan().toMutableList()
+            if (previousEnvelope?.wrapped == true && previousVerified != true) {
+                findings += AuditFinding(
+                    id = "evidence-chain-invalid-previous",
+                    title = "Предыдущая печать истории не подтверждена",
+                    detail = "PRO SEC не использовал предыдущий отчёт как базу сравнения. Возможны изменение записи, повреждение данных или смена/потеря ключа Android Keystore. Новый снимок создаётся как новая точка отсчёта.",
+                    severity = "HIGH",
+                    source = "LocalEvidenceSeal"
+                )
+            }
+
             val snapshot = ChangeSentinel.enrich(previousReport, scanner.toJson(findings))
             val tag = LocalEvidenceSeal.sign(
                 ReportEnvelopeCodec.material(previousTag, snapshot)
