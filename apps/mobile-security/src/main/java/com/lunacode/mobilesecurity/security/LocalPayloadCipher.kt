@@ -7,6 +7,7 @@ import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 class LocalPayloadCipher {
     fun encrypt(plainText: String): String {
@@ -14,6 +15,16 @@ class LocalPayloadCipher {
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val encrypted = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
         return Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
+    }
+
+    fun decrypt(encoded: String): String {
+        val payload = Base64.decode(encoded, Base64.NO_WRAP)
+        require(payload.size > 12) { "Invalid encrypted payload" }
+        val iv = payload.copyOfRange(0, 12)
+        val ciphertext = payload.copyOfRange(12, payload.size)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
+        return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
     private fun getOrCreateKey(): SecretKey {
