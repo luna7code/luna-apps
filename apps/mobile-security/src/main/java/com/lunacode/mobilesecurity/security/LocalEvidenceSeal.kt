@@ -38,10 +38,31 @@ object ReportEnvelopeCodec {
     }
 
     fun decode(stored: String): ReportEnvelope {
-        if (stored.startsWith("PROSEC-CHAIN") && !stored.startsWith("$PREFIX\n")) {
-            return malformedEnvelope()
+        if (stored.startsWith("$PREFIX\n")) {
+            val fields = stored.split('\n')
+            if (fields.size != 4 || fields[0] != PREFIX) {
+                return malformedEnvelope()
+            }
+
+            return runCatching {
+                val decoder = JavaBase64.getUrlDecoder()
+                fun field(value: String): String =
+                    String(decoder.decode(value), StandardCharsets.UTF_8)
+
+                ReportEnvelope(
+                    report = field(fields[3]),
+                    previousTag = field(fields[1]),
+                    chainTag = field(fields[2]).takeIf { it.isNotBlank() },
+                    wrapped = true
+                )
+            }.getOrElse {
+                malformedEnvelope()
+            }
         }
-        if (!stored.startsWith("$PREFIX\n")) {
+
+        // Previous versions stored a raw JSON report. Any non-JSON payload
+        // is treated as malformed instead of silently downgraded to legacy.
+        if (stored.trimStart().startsWith("{")) {
             return ReportEnvelope(
                 report = stored,
                 previousTag = "",
@@ -49,26 +70,7 @@ object ReportEnvelopeCodec {
                 wrapped = false
             )
         }
-
-        val fields = stored.split('\n')
-        if (fields.size != 4 || fields[0] != PREFIX) {
-            return malformedEnvelope()
-        }
-
-        return runCatching {
-            val decoder = JavaBase64.getUrlDecoder()
-            fun field(value: String): String =
-                String(decoder.decode(value), StandardCharsets.UTF_8)
-
-            ReportEnvelope(
-                report = field(fields[3]),
-                previousTag = field(fields[1]),
-                chainTag = field(fields[2]).takeIf { it.isNotBlank() },
-                wrapped = true
-            )
-        }.getOrElse {
-            malformedEnvelope()
-        }
+        return malformedEnvelope()
     }
 
     private fun malformedEnvelope() = ReportEnvelope(
