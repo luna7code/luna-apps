@@ -45,5 +45,5 @@ This is a private-distribution development build. Do not treat it as a stable re
 - Added grouped indicators for shell/process execution, dynamic code loading, Accessibility, notification access, SMS, screen capture, overlays, package installation, device identifiers, and networking APIs.
 - Added explicit scan limits and truncation reporting; findings are labeled as context indicators, not proof of behavior.
 - Expanded the APK X-RAY screen with extracted URLs and string findings.
-- Added JVM tests for URL extraction, indicator grouping, ignored archive entries, and bounded reads.
+- Added JVM tests for URL extraction, indicator grouping, ignored archive entries, and bounded reads. CI validation is pending for the final branch head.
 - No APK installation or execution. No INTERNET permission, telemetry, or cloud upload added.
