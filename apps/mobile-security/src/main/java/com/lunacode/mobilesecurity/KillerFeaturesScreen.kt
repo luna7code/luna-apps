@@ -159,6 +159,30 @@ fun KillerFeaturesScreen(
                     }
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { openSystemSettings(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text("ACCESSIBILITY") }
+                Button(
+                    onClick = { openSystemSettings(context, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text("УВЕДОМЛЕНИЯ") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { openSystemSettings(context, Intent(Settings.ACTION_VPN_SETTINGS)) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text("VPN") }
+                Button(
+                    onClick = { openSystemSettings(context, Intent(Settings.ACTION_SECURITY_SETTINGS)) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+                ) { Text("АДМИНИСТРАТОРЫ") }
+            }
         }
 
         item {
