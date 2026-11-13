@@ -6,6 +6,7 @@
 - Device Integrity checks for secure screen lock and test-keys build metadata.
 - Explicit limitation reporting for ADB / Developer Options because Android does not expose their state to ordinary third-party apps.
 - Input Trust inventory for enabled input methods and current default keyboard.
+- APK X-RAY now performs a bounded DEX API-reference scan for sensitive capabilities in addition to manifest checks.
 - Notification listener discovery added to the main audit report.
 - Direct remediation links from recommendations to Android settings and app details.
 - Expanded consent disclosure for newly collected local audit metadata.
