@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
                     scanning = scanning,
                     scanMessage = scanMessage,
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
-                    onDailyMonitoringChange = { enabled -> dailyMonitoringEnabled = enabled },
+                    onDailyMonitoringChange = { enabled -> setDailyMonitoring(enabled) },
                     onRefresh = { refreshLatest() },
                     onScan = { enabled -> enqueueScan(enabled) }
                 )
@@ -293,13 +293,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun enqueueScan(enableDailyMonitoring: Boolean) {
-        val workManager = WorkManager.getInstance(this)
-        dailyMonitoringEnabled = enableDailyMonitoring
+    private fun setDailyMonitoring(enabled: Boolean) {
+        dailyMonitoringEnabled = enabled
         getSharedPreferences("pro_sec_preferences", MODE_PRIVATE).edit()
-            .putBoolean("daily_monitoring_enabled", enableDailyMonitoring)
+            .putBoolean("daily_monitoring_enabled", enabled)
             .apply()
-        if (enableDailyMonitoring) {
+        val workManager = WorkManager.getInstance(this)
+        if (enabled) {
             val daily = PeriodicWorkRequestBuilder<DailyAuditWorker>(24, TimeUnit.HOURS).build()
             workManager.enqueueUniquePeriodicWork(
                 "pro-sec-daily-audit",
@@ -309,6 +309,11 @@ class MainActivity : ComponentActivity() {
         } else {
             workManager.cancelUniqueWork("pro-sec-daily-audit")
         }
+    }
+
+    private fun enqueueScan(enableDailyMonitoring: Boolean) {
+        setDailyMonitoring(enableDailyMonitoring)
+        val workManager = WorkManager.getInstance(this)
         val manual = OneTimeWorkRequestBuilder<DailyAuditWorker>().build()
         workManager.enqueueUniqueWork(
             MANUAL_SCAN_WORK,
