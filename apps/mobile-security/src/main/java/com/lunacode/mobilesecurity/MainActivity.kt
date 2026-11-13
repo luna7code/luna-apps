@@ -347,12 +347,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveTrustedBaseline() {
+        val expectedScannedAt = report?.takeIf { it.integrityStatus == "VERIFIED" }?.scannedAt
+        if (expectedScannedAt == null) {
+            scanMessage = "Trusted Baseline можно создать только из отчёта с подтверждённой целостностью."
+            return
+        }
         lifecycleScope.launch {
             val savedAt = System.currentTimeMillis()
             val saved = withContext(Dispatchers.IO) {
                 runCatching {
                     val record = ProSecDatabase.get(applicationContext).scanDao().latest()
                         ?: return@withContext false
+                    if (record.scannedAt != expectedScannedAt) return@withContext false
                     val envelope = ReportEnvelopeCodec.decode(LocalPayloadCipher().decrypt(record.encryptedPayload))
                     if (!envelope.wrapped || envelope.chainTag.isNullOrBlank() || envelope.report.isBlank()) return@withContext false
                     if (!LocalEvidenceSeal.verify(ReportEnvelopeCodec.material(envelope.previousTag, envelope.report), envelope.chainTag)) return@withContext false
