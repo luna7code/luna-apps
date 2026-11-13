@@ -137,7 +137,7 @@ internal object ElfMetadataParser {
         val symtabVaddr = tags.firstOrNull { it.first == DT_SYMTAB }?.second
         val symtabOffset = symtabVaddr?.let { virtualToFile(it, segments) }
         val syment = tags.firstOrNull { it.first == DT_SYMENT }?.second ?: if (is64) 24L else 16L
-        if (symtabOffset != null && stringTableValid && syment >= if (is64) 24L else 16L &&
+        if (symtabOffset != null && stringTableValid && syment >= (if (is64) 24L else 16L) &&
             syment <= 64L
         ) {
             val hashVaddr = tags.firstOrNull { it.first == DT_HASH }?.second
