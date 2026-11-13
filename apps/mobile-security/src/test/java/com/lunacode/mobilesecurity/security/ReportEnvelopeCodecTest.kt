@@ -48,7 +48,7 @@ class ReportEnvelopeCodecTest {
 
     @Test
     fun nonJsonPayloadDoesNotDowngradeToLegacy() {
-        val decoded = ReportEnvelopeCodec.decode("XROSEC-CHAIN-1\\ncorrupted")
+        val decoded = ReportEnvelopeCodec.decode("XROSEC-CHAIN-1\ncorrupted")
         assertTrue(decoded.wrapped)
         assertNull(decoded.chainTag)
         assertEquals("", decoded.report)
