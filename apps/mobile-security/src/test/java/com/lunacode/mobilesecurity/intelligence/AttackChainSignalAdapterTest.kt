@@ -62,6 +62,20 @@ class AttackChainSignalAdapterTest {
     }
 
     @Test
+    fun correlatesInstalledAppWithExplicitlyAllowedOverlayAppOp() {
+        val chains = AttackChainSignalAdapter.detect(
+            findings = listOf(AuditFinding(
+                "app-op-overlay-com.example.overlay", "Overlay allowed", "Allowed operation", "MEDIUM", "com.example.overlay"
+            )),
+            changes = listOf(SentinelChange("installed", "Installed", "New app", "MEDIUM", "com.example.overlay")),
+            observedAtMillis = 25_000L
+        )
+        assertEquals(1, chains.size)
+        assertEquals(78, chains.single().confidenceScore)
+        assertTrue(chains.single().explanation.contains("поверх других приложений"))
+    }
+
+    @Test
     fun ignoresSystemInputMethodWhenCorrelatingWithNotificationAccess() {
         val chains = AttackChainSignalAdapter.detect(
             findings = listOf(

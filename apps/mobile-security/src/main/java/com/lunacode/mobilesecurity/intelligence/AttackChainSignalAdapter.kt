@@ -44,12 +44,18 @@ object AttackChainSignalAdapter {
                     finding.id.removePrefix("admin-")
                 finding.id.startsWith("input-method-") && finding.id != "input-method-none" ->
                     finding.id.removePrefix("input-method-")
+                finding.id.startsWith("app-op-overlay-") -> finding.id.removePrefix("app-op-overlay-")
+                finding.id.startsWith("app-op-usage-") -> finding.id.removePrefix("app-op-usage-")
+                finding.id.startsWith("app-op-write-settings-") -> finding.id.removePrefix("app-op-write-settings-")
+                finding.id.startsWith("app-op-install-packages-") -> finding.id.removePrefix("app-op-install-packages-")
+                finding.id.startsWith("app-op-manage-storage-") -> finding.id.removePrefix("app-op-manage-storage-")
                 else -> null
             }?.takeIf { it.isNotBlank() } ?: return@forEach
-            if (finding.id.startsWith("input-method-") && finding.severity == "INFO") return@forEach
+            if ((finding.id.startsWith("input-method-") || finding.id.startsWith("app-op-")) && finding.severity == "INFO") return@forEach
             val type = when {
                 finding.id.startsWith("notification-listener-") -> ThreatSignalType.NOTIFICATION_ACCESS_ENABLED
                 finding.id.startsWith("input-method-") -> ThreatSignalType.INPUT_METHOD_ENABLED
+                finding.id.startsWith("app-op-overlay-") -> ThreatSignalType.OVERLAY_ACCESS_ENABLED
                 else -> ThreatSignalType.SPECIAL_ACCESS_ENABLED
             }
             signals += ThreatSignal(
