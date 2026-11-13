@@ -39,10 +39,11 @@ object DexIndicatorScanner {
         var dexCount = 0
         var truncated = false
         ZipFile(apkFile).use { zip ->
-            val entries = zip.entries().asSequence()
+            val allEntries = zip.entries().asSequence()
                 .filter { !it.isDirectory && it.name.endsWith(".dex", ignoreCase = true) }
-                .take(MAX_DEX_FILES)
                 .toList()
+            val entries = allEntries.take(MAX_DEX_FILES)
+            if (allEntries.size > MAX_DEX_FILES) truncated = true
             for (entry in entries) {
                 if (totalBytes >= MAX_TOTAL_DEX_BYTES) {
                     truncated = true
