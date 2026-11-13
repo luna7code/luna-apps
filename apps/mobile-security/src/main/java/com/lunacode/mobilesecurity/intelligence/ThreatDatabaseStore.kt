@@ -11,25 +11,33 @@ import java.nio.charset.StandardCharsets
 class ThreatDatabaseStore(private val context: Context) {
     private val file = File(context.filesDir, "pro-sec-threat-db.enc")
     private val preferences = context.getSharedPreferences("pro_sec_threat_database", Context.MODE_PRIVATE)
+    private val trustStore = ThreatKeyTrustStore(context)
 
     fun currentVersion(): Long = preferences.getLong("version", 0L)
 
     fun loadVerified(): VerifiedThreatDatabase? {
-        if (!file.isFile || TrustedThreatKeys.publicKeysBase64.isEmpty()) return null
+        val trustedKeys = trustStore.publicKeys()
+        if (!file.isFile || trustedKeys.isEmpty()) return null
         return runCatching {
             val encrypted = file.readText(StandardCharsets.UTF_8)
             val plain = LocalPayloadCipher().decrypt(encrypted)
             val savedVersion = currentVersion()
-            OfflineThreatDatabaseVerifier.verify(
-                plain, TrustedThreatKeys.publicKeysBase64,
+            val database = OfflineThreatDatabaseVerifier.verify(
+                plain,
+                trustedKeys,
                 minimumVersionExclusive = (savedVersion - 1L).coerceAtLeast(0L)
             )
+            if (database.version > savedVersion) {
+                preferences.edit().putLong("version", database.version).apply()
+            }
+            database
         }.getOrNull()
     }
 
     fun importFrom(uri: Uri): VerifiedThreatDatabase {
-        require(TrustedThreatKeys.publicKeysBase64.isNotEmpty()) {
-            "Доверенный публичный ключ издателя ещё не настроен. Неподписанная или неизвестная база не будет принята."
+        val trustedKeys = trustStore.publicKeys()
+        require(trustedKeys.isNotEmpty()) {
+            "Сначала закрепите проверенный публичный ключ издателя. Неподписанная или неизвестная база не будет принята."
         }
         val plain = context.contentResolver.openInputStream(uri)?.use { input ->
             val output = ByteArrayOutputStream()
@@ -44,8 +52,11 @@ class ThreatDatabaseStore(private val context: Context) {
             }
             String(output.toByteArray(), StandardCharsets.UTF_8)
         } ?: throw IllegalArgumentException("Не удалось открыть выбранный файл.")
+
         val verified = OfflineThreatDatabaseVerifier.verify(
-            plain, TrustedThreatKeys.publicKeysBase64, minimumVersionExclusive = currentVersion()
+            plain,
+            trustedKeys,
+            minimumVersionExclusive = currentVersion()
         )
         val encrypted = LocalPayloadCipher().encrypt(plain)
         val atomic = AtomicFile(file)
@@ -53,7 +64,9 @@ class ThreatDatabaseStore(private val context: Context) {
         try {
             stream.write(encrypted.toByteArray(StandardCharsets.UTF_8))
             atomic.finishWrite(stream)
-            preferences.edit().putLong("version", verified.version).apply()
+            check(preferences.edit().putLong("version", verified.version).commit()) {
+                "Не удалось сохранить версию базы индикаторов."
+            }
         } catch (error: Throwable) {
             atomic.failWrite(stream)
             throw error
@@ -61,14 +74,17 @@ class ThreatDatabaseStore(private val context: Context) {
         return verified
     }
 
-    fun statusDescription(): String = when {
-        TrustedThreatKeys.publicKeysBase64.isEmpty() ->
-            "Корень доверия ещё не настроен. Импорт блокируется до добавления публичного ключа издателя."
-        loadVerified() != null -> {
-            val database = loadVerified()!!
-            "Подпись проверена · версия ${database.version} · индикаторов ${database.indicators.size}"
+    fun statusDescription(): String {
+        val fingerprint = trustStore.currentFingerprint()
+        if (trustStore.publicKeys().isEmpty()) {
+            return "Корень доверия не настроен. Импорт заблокирован до закрепления публичного ключа издателя."
         }
-        file.exists() -> "Сохранённая база не прошла проверку подписи или целостности."
-        else -> "Подписанная офлайн-база ещё не импортирована."
+        val database = loadVerified()
+        return when {
+            database != null ->
+                "Подпись проверена · версия ${database.version} · индикаторов ${database.indicators.size} · ключ ${database.keyId} · SHA-256 ${fingerprint.orEmpty()}"
+            file.exists() -> "Сохранённая база не прошла проверку подписи, версии или целостности."
+            else -> "Публичный ключ закреплён · SHA-256 ${fingerprint.orEmpty()} · подписанная офлайн-база ещё не импортирована."
+        }
     }
 }

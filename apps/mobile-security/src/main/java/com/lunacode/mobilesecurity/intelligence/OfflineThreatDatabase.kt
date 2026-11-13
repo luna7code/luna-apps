@@ -131,11 +131,3 @@ object OfflineThreatDatabaseVerifier {
     }
 }
 
-/**
- * Trust roots are deliberately provisioned as public keys only. Keep the matching
- * private signing key offline and never place it in this repository or the APK.
- * The empty default registry fails closed until the product owner provisions a key.
- */
-object TrustedThreatKeys {
-    val publicKeysBase64: Map<String, String> = emptyMap()
-}
