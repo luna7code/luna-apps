@@ -6,7 +6,8 @@ data class PostureRecommendation(
     val title: String,
     val detail: String,
     val priority: String,
-    val packageName: String? = null
+    val packageName: String? = null,
+    val settingsAction: String? = null
 )
 
 data class SecurityPostureReport(
@@ -60,6 +61,7 @@ object SecurityPosture {
                 finding.id.startsWith("permissions-") -> finding.source
                 finding.id.startsWith("granted-permissions-") -> finding.source
                 finding.id.startsWith("debuggable-") -> finding.source
+                finding.id.startsWith("app-op-") -> finding.source
                 else -> null
             }?.takeIf { it.contains('.') }
 
@@ -92,6 +94,31 @@ object SecurityPosture {
                     "Убедитесь, что приложение должно иметь административные полномочия.",
                     "HIGH",
                     packageName
+                )
+                finding.id.startsWith("app-op-overlay-") -> result += PostureRecommendation(
+                    "Проверить доступ поверх окон",
+                    "Доступ позволяет показывать окна поверх других приложений. Убедитесь, что это ожидаемая функция; затем повторите аудит.",
+                    "MEDIUM", packageName, "overlay"
+                )
+                finding.id.startsWith("app-op-usage-") -> result += PostureRecommendation(
+                    "Проверить доступ к статистике использования",
+                    "Доступ раскрывает сведения об использовании приложений. Оставляйте его только приложениям, которым это действительно необходимо.",
+                    "MEDIUM", packageName, "usage"
+                )
+                finding.id.startsWith("app-op-write-settings-") -> result += PostureRecommendation(
+                    "Проверить право менять системные настройки",
+                    "Убедитесь, что приложение должно менять системные параметры.",
+                    "MEDIUM", packageName, "write-settings"
+                )
+                finding.id.startsWith("app-op-install-packages-") -> result += PostureRecommendation(
+                    "Проверить право устанавливать APK",
+                    "Разрешение установки неизвестных приложений повышает риск установки нежелательного ПО.",
+                    "LOW", packageName, "install-packages"
+                )
+                finding.id.startsWith("app-op-manage-storage-") -> result += PostureRecommendation(
+                    "Проверить широкий доступ к файлам",
+                    "Проверьте, действительно ли приложению нужен широкий доступ к общему хранилищу.",
+                    "MEDIUM", packageName, "manage-storage"
                 )
                 finding.id.startsWith("debuggable-") -> result += PostureRecommendation(
                     "Проверить отладочную сборку",

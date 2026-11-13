@@ -36,6 +36,21 @@ class SecurityPostureTest {
     }
 
     @Test
+    fun mapsAppOpsFindingsToSpecificSettingsRemediation() {
+        val report = SecurityPosture.evaluate(
+            listOf(AuditFinding(
+                "app-op-overlay-com.example.overlay",
+                "Overlay allowed",
+                "Operation allowed",
+                "MEDIUM",
+                "com.example.overlay"
+            ))
+        )
+        assertEquals("overlay", report.recommendations.single().settingsAction)
+        assertEquals("com.example.overlay", report.recommendations.single().packageName)
+    }
+
+    @Test
     fun prioritizesActionableRemediation() {
         val report = SecurityPosture.evaluate(
             listOf(
