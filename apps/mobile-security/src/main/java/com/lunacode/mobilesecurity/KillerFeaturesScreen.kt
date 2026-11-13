@@ -156,6 +156,19 @@ fun KillerFeaturesScreen(
                     InfoCard("Активные поверхности контроля не обнаружены", "Сейчас Android не сообщил включённых Accessibility/notification listener/admin/VPN механизмов.")
                 } else {
                     Text("НАЙДЕНО МЕХАНИЗМОВ: ${surfaces.size}", color = KillerAmber, fontSize = 11.sp)
+                    val clusters = surfaces
+                        .filter { it.packageName != "system.network" }
+                        .groupBy { it.packageName }
+                        .filterValues { entries -> entries.map { it.category }.distinct().size >= 2 }
+                    clusters.values.forEach { combined ->
+                        val categories = combined.map { it.category }.distinct()
+                        FeatureCard(
+                            "СОВМЕЩЕНИЕ ПРИВИЛЕГИЙ",
+                            combined.first().appLabel,
+                            "Одному приложению одновременно выданы механизмы: ${categories.joinToString()}. Это увеличивает потенциальные последствия компрометации, но не является доказательством вредоносного поведения.",
+                            KillerRed
+                        )
+                    }
                     surfaces.forEach { surface ->
                         FeatureCard(
                             surface.category.uppercase(Locale.ROOT),
