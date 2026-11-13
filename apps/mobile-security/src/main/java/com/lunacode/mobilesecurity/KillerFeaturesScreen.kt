@@ -59,11 +59,18 @@ data class KillerChangeUi(
     val level: String
 )
 
+data class KillerHistoryUi(
+    val scannedAt: Long,
+    val findingCount: Int,
+    val changeCount: Int
+)
+
 @Composable
 fun KillerFeaturesScreen(
     changes: List<KillerChangeUi>,
     firstBaseline: Boolean,
-    hasReport: Boolean
+    hasReport: Boolean,
+    history: List<KillerHistoryUi>
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -216,7 +223,27 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "03 · APK X-RAY",
+                "03 · TRUST TIMELINE",
+                "Хронология состояния",
+                "Последние локальные снимки помогают сопоставить, когда появились индикаторы и когда менялся состав приложений."
+            )
+            if (history.isEmpty()) {
+                InfoCard("История пока пуста", "Запустите первый аудит. Каждый последующий отчёт сохранится локально; хранится не более 90 последних записей.")
+            } else {
+                history.forEach { item ->
+                    FeatureCard(
+                        "ЛОКАЛЬНЫЙ СНИМОК",
+                        java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.scannedAt)),
+                        "Сигналов аудита: ${item.findingCount} · Изменений с прошлого снимка: ${item.changeCount}",
+                        KillerMuted
+                    )
+                }
+            }
+        }
+
+        item {
+            FeatureHeader(
+                "04 · APK X-RAY",
                 "Рентген APK до установки",
                 "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256 файла и отпечатки сертификатов. Файл не устанавливается."
             )
@@ -232,7 +259,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "04 · LINK MIRROR",
+                "05 · LINK MIRROR",
                 "Проверка ссылки без интернета",
                 "Анализирует структуру адреса: HTTP, маскировку через user-info, Punycode, короткие ссылки, IP вместо домена и нестандартные порты. Не открывает ссылку."
             )
@@ -269,7 +296,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "05 · PURA GUARD",
+                "06 · PURA GUARD",
                 "Режим устойчивой защиты Huawei",
                 "Профиль настройки фоновой работы для Pura 70. Он не обходит ограничения батареи и не включает скрытые разрешения — только открывает системные экраны и даёт проверяемые шаги."
             )
