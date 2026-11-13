@@ -14,7 +14,7 @@ object TrustedBaselineCodec {
     ): String {
         require(savedAt > 0L) { "Trusted Baseline timestamp must be positive" }
         require(report.isNotBlank() && validateReport(report)) { "Trusted Baseline report is invalid" }
-        val material = ReportEnvelopeCodec.material("", report)
+        val material = baselineMaterial(savedAt, report)
         val tag = sign(material)
         require(tag.isNotBlank()) { "Trusted Baseline signature is missing" }
         return ReportEnvelopeCodec.encode("", report, tag)
@@ -32,8 +32,11 @@ object TrustedBaselineCodec {
             require(envelope.wrapped && envelope.previousTag.isEmpty())
             val tag = envelope.chainTag?.takeIf { it.isNotBlank() } ?: error("Missing baseline signature")
             require(envelope.report.isNotBlank() && validateReport(envelope.report))
-            require(verify(ReportEnvelopeCodec.material("", envelope.report), tag))
+            require(verify(baselineMaterial(savedAt, envelope.report), tag))
             TrustedBaselineRead.Valid(envelope.report, savedAt)
         }.getOrElse { TrustedBaselineRead.Invalid }
     }
+
+    private fun baselineMaterial(savedAt: Long, report: String): String =
+        "PROSEC-TRUSTED-BASELINE-1\\n$savedAt\\n$report"
 }

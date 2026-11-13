@@ -17,6 +17,12 @@ class AppOpsFindingPolicyTest {
         assertTrue(finding?.id?.contains("com.example.app") == true)
     }
 
+    @Test fun deniedIgnoredErroredAndDefaultModesAreNotReportedAsGranted() {
+        for (mode in listOf(1, 2, 3, 4)) {
+            assertNull(AppOpsFindingPolicy.toFinding(evidence(mode)))
+        }
+    }
+
     @Test fun systemAppEvidenceIsInformational() {
         assertEquals("INFO", AppOpsFindingPolicy.toFinding(evidence(0, true))?.severity)
     }

@@ -29,6 +29,7 @@ class TrustedBaselineCodecTest {
     @Test fun rejectsMissingOrInvalidTimestamp() {
         val encoded = TrustedBaselineCodec.encode(validReport, 1234L, validate, sign)
         assertTrue(TrustedBaselineCodec.decode(encoded, 0L, validate, verify) is TrustedBaselineRead.Invalid)
+        assertTrue(TrustedBaselineCodec.decode(encoded, 1235L, validate, verify) is TrustedBaselineRead.Invalid)
         assertTrue(runCatching { TrustedBaselineCodec.encode(validReport, -1L, validate, sign) }.isFailure)
     }
 
