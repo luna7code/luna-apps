@@ -56,6 +56,10 @@ object ApkArchiveInspector {
                 if (normalized.startsWith("/") || normalized.split('/').any { it == ".." } ||
                     normalized.contains("\u0000")
                 ) suspicious += "Unsafe archive path: ${entry.name.take(180)}"
+                val canonical = canonicalPath(normalized)
+                if (!seenPaths.add(canonical)) {
+                    suspicious += "Duplicate ZIP path: ${canonical.take(180)}"
+                }
                 if (entry.size > 0 && entry.compressedSize > 0 &&
                     entry.size / entry.compressedSize.coerceAtLeast(1) > MAX_RATIO
                 ) suspicious += "High compression ratio: ${entry.name.take(180)}"

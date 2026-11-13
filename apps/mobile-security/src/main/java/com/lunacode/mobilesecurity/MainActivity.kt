@@ -49,6 +49,8 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.lunacode.mobilesecurity.data.ProSecDatabase
 import com.lunacode.mobilesecurity.data.ScanRecord
+import com.lunacode.mobilesecurity.intelligence.AttackChain
+import com.lunacode.mobilesecurity.intelligence.AttackChainSignalAdapter
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
 import com.lunacode.mobilesecurity.intelligence.SecurityPosture
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
@@ -96,6 +98,7 @@ private data class ScanReportUi(
     val scannedAt: Long,
     val findings: List<FindingUi>,
     val changes: List<KillerChangeUi>,
+    val attackChains: List<AttackChain>,
     val firstBaseline: Boolean,
     val history: List<KillerHistoryUi>,
     val posture: SecurityPostureReport,
@@ -286,6 +289,13 @@ class MainActivity : ComponentActivity() {
                     val changes = sentinel.changes.map {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
                     }
+                    val attackChains = AttackChainSignalAdapter.detect(
+                        findings = findings.map { finding ->
+                            AuditFinding(finding.id, finding.title, finding.detail, finding.severity, finding.source)
+                        },
+                        changes = sentinel.changes,
+                        observedAtMillis = record.scannedAt
+                    )
                     val history = decoded.map { scan ->
                         KillerHistoryUi(
                             scannedAt = scan.record.scannedAt,
@@ -298,6 +308,7 @@ class MainActivity : ComponentActivity() {
                         scannedAt = record.scannedAt,
                         findings = findings,
                         changes = changes,
+                        attackChains = attackChains,
                         firstBaseline = schema < 2 || sentinel.isFirstBaseline,
                         history = history,
                         posture = posture,
@@ -568,6 +579,12 @@ private fun SecurityOverview(
         item {
             report?.let { EvidenceSealCard(it.integrityStatus, compact = true) }
         }
+        if (report != null && report.attackChains.isNotEmpty()) {
+            item {
+                Text("ATTACK CHAIN DETECTOR · ${report.attackChains.size}", color = ProAmber, fontSize = 11.sp, letterSpacing = 1.5.sp)
+            }
+            items(report.attackChains) { chain -> AttackChainCard(chain) }
+        }
         if (report != null && report.changes.isNotEmpty()) {
             item {
                 Text(
@@ -664,6 +681,24 @@ private fun Metric(label: String, value: Int, color: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(value.toString(), color = color, fontSize = 23.sp)
         Text(label, color = ProMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+    }
+}
+
+@Composable
+private fun AttackChainCard(chain: AttackChain) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Warning.copy(alpha = 0.45f)),
+        colors = CardDefaults.cardColors(containerColor = ProPanel)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("СВЯЗАННАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · ${chain.severity}", color = ProAmber, fontSize = 10.sp, letterSpacing = 1.2.sp)
+            Text(chain.title, color = ProWhite, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(chain.packageName, color = ProMuted, fontSize = 11.sp)
+            Text(chain.explanation, color = ProMuted, fontSize = 12.sp)
+            Text("Сила сочетания признаков: ${chain.confidenceScore}/100 · событий: ${chain.signals.size}", color = ProWhite, fontSize = 11.sp)
+        }
     }
 }
 
