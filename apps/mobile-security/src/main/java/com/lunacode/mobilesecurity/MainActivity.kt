@@ -45,6 +45,9 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.lunacode.mobilesecurity.data.ProSecDatabase
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
+import com.lunacode.mobilesecurity.intelligence.SecurityPosture
+import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
+import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
 import kotlinx.coroutines.Dispatchers
@@ -64,13 +67,20 @@ private val ProAmber = Color(0xFFFFC15A)
 private val ProRed = Color(0xFFFF6B6B)
 private const val MANUAL_SCAN_WORK = "pro-sec-manual-audit"
 
-private data class FindingUi(val title: String, val detail: String, val severity: String)
+private data class FindingUi(
+    val title: String,
+    val detail: String,
+    val severity: String,
+    val id: String = "",
+    val source: String = ""
+)
 private data class ScanReportUi(
     val scannedAt: Long,
     val findings: List<FindingUi>,
     val changes: List<KillerChangeUi>,
     val firstBaseline: Boolean,
-    val history: List<KillerHistoryUi>
+    val history: List<KillerHistoryUi>,
+    val posture: SecurityPostureReport
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -160,12 +170,25 @@ class MainActivity : ComponentActivity() {
                                 FindingUi(
                                     title = item.optString("title", "Без названия"),
                                     detail = item.optString("detail", ""),
-                                    severity = item.optString("severity", "INFO")
+                                    severity = item.optString("severity", "INFO"),
+                                    id = item.optString("id", ""),
+                                    source = item.optString("source", "")
                                 )
                             )
                         }
                     }.sortedBy { severityOrder(it.severity) }
 
+                    val posture = SecurityPosture.evaluate(
+                        findings.map { finding ->
+                            AuditFinding(
+                                id = finding.id,
+                                title = finding.title,
+                                detail = finding.detail,
+                                severity = finding.severity,
+                                source = finding.source
+                            )
+                        }
+                    )
                     val sentinel = ChangeSentinel.read(json)
                     val changes = sentinel.changes.map {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
@@ -182,7 +205,8 @@ class MainActivity : ComponentActivity() {
                         findings = findings,
                         changes = changes,
                         firstBaseline = schema < 2 || sentinel.isFirstBaseline,
-                        history = history
+                        history = history,
+                        posture = posture
                     )
                 }
             }
@@ -288,7 +312,8 @@ private fun SecurityHome(
                     changes = report?.changes.orEmpty(),
                     firstBaseline = report?.firstBaseline ?: true,
                     hasReport = report != null,
-                    history = report?.history.orEmpty()
+                    history = report?.history.orEmpty(),
+                    postureReport = report?.posture
                 )
             }
         }
@@ -378,6 +403,9 @@ private fun SecurityOverview(
                     ) { Text("ОБНОВИТЬ ОТЧЁТ") }
                 }
             }
+        }
+        item {
+            report?.let { SecurityPostureCard(it.posture, compact = true) }
         }
         if (report != null && report.changes.isNotEmpty()) {
             item {
