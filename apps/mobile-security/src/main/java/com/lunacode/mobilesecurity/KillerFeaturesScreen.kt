@@ -148,7 +148,7 @@ fun KillerFeaturesScreen(
                     InfoCard("Активные поверхности контроля не обнаружены", "Сейчас Android не сообщил включённых Accessibility/notification listener/admin/VPN механизмов.")
                 } else {
                     Text("НАЙДЕНО МЕХАНИЗМОВ: ${surfaces.size}", color = KillerAmber, fontSize = 11.sp)
-                    items(surfaces) { surface ->
+                    surfaces.forEach { surface ->
                         FeatureCard(
                             surface.category.uppercase(Locale.ROOT),
                             surface.appLabel,
