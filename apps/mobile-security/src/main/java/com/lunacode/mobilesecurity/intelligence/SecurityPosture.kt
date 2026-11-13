@@ -51,7 +51,7 @@ object SecurityPosture {
 
     private fun buildRecommendations(findings: List<AuditFinding>): List<PostureRecommendation> {
         val result = mutableListOf<PostureRecommendation>()
-        findings.forEach { finding ->
+        findings.filter { it.severity != "INFO" }.forEach { finding ->
             val packageName = when {
                 finding.id.startsWith("remote-") -> finding.source
                 finding.id.startsWith("accessibility-") -> finding.source.substringBefore('/')
