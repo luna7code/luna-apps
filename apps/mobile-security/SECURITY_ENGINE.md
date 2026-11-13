@@ -16,9 +16,10 @@ Release direction: private APK distribution. Current development artifact is a d
 - Active notification-listener inventory from Settings.Secure.
 - Active device administrator inventory via DevicePolicyManager.
 - Active default-network VPN transport check via ConnectivityManager.
-- Per-app local fingerprint: package ID, label, version, last update time, signing certificate SHA-256 and digest of requested/granted permission state.
+- Per-app local fingerprint: package ID, label, version, last update time, signing certificate SHA-256, installer package provenance, and digest of requested/granted permission state.
+- Separate indication for multiple sensitive permissions currently marked as granted, distinct from merely requested permissions.
 - Scan report encrypted with AES-GCM using an Android Keystore key.
-- Room history bounded to the latest 90 reports.
+- Room history bounded to the latest 90 reports; the Killer Features tab displays the latest eight timeline entries.
 
 ## Killer Features tab
 
@@ -36,6 +37,7 @@ Compares the current encrypted scan snapshot with the previous snapshot:
 - Version / update-time changes.
 - Signing certificate fingerprint changes.
 - Changes to requested or granted permission state.
+- Installer package information reported by Android for newly discovered packages.
 - Newly appearing audit finding IDs.
 First scan creates the baseline. A certificate change may be legitimate key rotation; new installation is not proof of malware.
 
@@ -47,6 +49,7 @@ Uses Android PackageManager to inspect a user-selected APK without installing or
 - Debuggable, backup, and cleartext-traffic manifest flags.
 - SHA-256 digest of the APK.
 - SHA-256 fingerprints of signing certificates.
+- If the same package is already installed, compare the selected APK signer with the installed package signer / available signing-certificate lineage and flag a mismatch.
 The APK is staged in app cache, with a 150 MB input limit, analyzed locally, and deleted afterwards. This is static manifest/metadata triage, not dynamic sandboxing, full code decompilation, malware signature scanning, or proof of signer trust.
 
 ### 4. LINK MIRROR
@@ -54,7 +57,10 @@ Offline URL-structure inspection:
 - Plain HTTP, unusual URI schemes, user-info masking, Punycode, raw IPv4 hosts, URL shorteners, unusually deep subdomains, non-standard ports, and encoded path separators.
 No network request is made; domain reputation, DNS, redirects, and page contents are not checked. A clean structural result is not a safety verdict.
 
-### 5. PURA GUARD
+### 5. TRUST TIMELINE
+Shows the latest eight local scan snapshots with finding counts and newly detected changes. The database retains at most 90 reports; each payload is encrypted locally.
+
+### 6. PURA GUARD
 Device-specific background reliability guide for Huawei Pura 70 / EMUI. It provides user-controlled shortcuts to Android app details and battery optimization settings, plus manual instructions for App launch, Run in background and locking the app in Recents. It does not silently disable battery protections or guarantee exact-time background execution.
 
 ## Privacy model
