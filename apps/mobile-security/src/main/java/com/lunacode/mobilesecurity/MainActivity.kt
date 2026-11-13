@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -103,10 +104,13 @@ class MainActivity : ComponentActivity() {
     private var report by mutableStateOf<ScanReportUi?>(null)
     private var scanning by mutableStateOf(false)
     private var scanMessage by mutableStateOf("Проверка ещё не запускалась")
+    private var dailyMonitoringEnabled by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureSystemBars()
+        dailyMonitoringEnabled = getSharedPreferences("pro_sec_preferences", MODE_PRIVATE)
+            .getBoolean("daily_monitoring_enabled", false)
         observeManualScan()
         refreshLatest()
         setContent {
@@ -115,8 +119,10 @@ class MainActivity : ComponentActivity() {
                     report = report,
                     scanning = scanning,
                     scanMessage = scanMessage,
+                    dailyMonitoringEnabled = dailyMonitoringEnabled,
+                    onDailyMonitoringChange = { enabled -> dailyMonitoringEnabled = enabled },
                     onRefresh = { refreshLatest() },
-                    onScan = { enqueueScan() }
+                    onScan = { enabled -> enqueueScan(enabled) }
                 )
             }
         }
@@ -287,14 +293,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun enqueueScan() {
+    private fun enqueueScan(enableDailyMonitoring: Boolean) {
         val workManager = WorkManager.getInstance(this)
-        val daily = PeriodicWorkRequestBuilder<DailyAuditWorker>(24, TimeUnit.HOURS).build()
-        workManager.enqueueUniquePeriodicWork(
-            "pro-sec-daily-audit",
-            ExistingPeriodicWorkPolicy.KEEP,
-            daily
-        )
+        dailyMonitoringEnabled = enableDailyMonitoring
+        getSharedPreferences("pro_sec_preferences", MODE_PRIVATE).edit()
+            .putBoolean("daily_monitoring_enabled", enableDailyMonitoring)
+            .apply()
+        if (enableDailyMonitoring) {
+            val daily = PeriodicWorkRequestBuilder<DailyAuditWorker>(24, TimeUnit.HOURS).build()
+            workManager.enqueueUniquePeriodicWork(
+                "pro-sec-daily-audit",
+                ExistingPeriodicWorkPolicy.KEEP,
+                daily
+            )
+        } else {
+            workManager.cancelUniqueWork("pro-sec-daily-audit")
+        }
         val manual = OneTimeWorkRequestBuilder<DailyAuditWorker>().build()
         workManager.enqueueUniqueWork(
             MANUAL_SCAN_WORK,
@@ -331,8 +345,10 @@ private fun SecurityHome(
     report: ScanReportUi?,
     scanning: Boolean,
     scanMessage: String,
+    dailyMonitoringEnabled: Boolean,
+    onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: () -> Unit
+    onScan: (Boolean) -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
@@ -445,6 +461,23 @@ private fun SecurityOverview(
                             fontSize = 13.sp
                         )
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = dailyMonitoringEnabled,
+                            onCheckedChange = onDailyMonitoringChange
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ежедневный мониторинг", color = ProWhite, fontSize = 13.sp)
+                            Text(
+                                "Плановая проверка примерно раз в 24 часа. Android может задерживать её.",
+                                color = ProMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                     Button(
                         onClick = { showConsent = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -544,12 +577,12 @@ private fun SecurityOverview(
             title = { Text("Локальная проверка PRO SEC", color = ProWhite) },
             text = {
                 Text(
-                    "Для проверки PRO SEC прочитает список видимых приложений, их версии, источники установки, отпечатки сертификатов и состояние чувствительных разрешений; включённые Accessibility-сервисы, слушатели уведомлений, администраторов, состояние VPN, защищённой блокировки экрана и доступные метаданные прошивки. Отчёты останутся на устройстве и будут сохранены в зашифрованном виде. PRO SEC не отправляет эти сведения в сеть. Продолжить?",
+                    "PRO SEC прочитает доступные сведения об установленных приложениях, чувствительных разрешениях, специальных доступах, администраторах, VPN, блокировке экрана и метаданных устройства. Отчёт останется на устройстве в зашифрованном виде; сетевой передачи нет. ${if (dailyMonitoringEnabled) "Вы также разрешаете плановые локальные проверки примерно раз в 24 часа. Их время зависит от Android и режима энергосбережения." else "Ежедневный мониторинг выключен; будет выполнена только разовая проверка."} Продолжить?",
                     color = ProMuted
                 )
             },
             confirmButton = {
-                Button(onClick = { showConsent = false; onScan() }) {
+                Button(onClick = { showConsent = false; onScan(dailyMonitoringEnabled) }) {
                     Text("СОГЛАСЕН И ПРОВЕРИТЬ")
                 }
             },
