@@ -55,6 +55,8 @@ import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
+import com.lunacode.mobilesecurity.security.HistoryChainRecord
+import com.lunacode.mobilesecurity.security.HistoryChainVerifier
 import com.lunacode.mobilesecurity.security.LocalPayloadCipher
 import com.lunacode.mobilesecurity.security.ReportEnvelope
 import com.lunacode.mobilesecurity.security.ReportEnvelopeCodec
@@ -96,7 +98,9 @@ private data class ScanReportUi(
     val firstBaseline: Boolean,
     val history: List<KillerHistoryUi>,
     val posture: SecurityPostureReport,
-    val integrityStatus: String
+    val integrityStatus: String,
+    val scanDurationMs: Long,
+    val appCount: Int
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -209,15 +213,18 @@ class MainActivity : ComponentActivity() {
                         decoded.firstOrNull()?.integrityStatus = "FAILED"
                     }
                     val chronological = decoded.asReversed()
-                    for (index in 1 until chronological.size) {
-                        val older = chronological[index - 1]
-                        val newer = chronological[index]
-                        val olderTag = older.envelope.chainTag
-                        if (olderTag != null && newer.envelope.chainTag != null &&
-                            newer.envelope.previousTag != olderTag
-                        ) {
-                            newer.integrityStatus = "FAILED"
+                    val chainStatuses = HistoryChainVerifier.verifyChronological(
+                        chronological.map { scan ->
+                            HistoryChainRecord(
+                                id = scan.record.id,
+                                previousTag = scan.envelope.previousTag,
+                                chainTag = scan.envelope.chainTag,
+                                status = scan.integrityStatus
+                            )
                         }
+                    ).associateBy { it.id }
+                    chronological.forEach { scan ->
+                        scan.integrityStatus = chainStatuses[scan.record.id]?.status ?: "FAILED"
                     }
                     val latest = decoded.firstOrNull() ?: return@runCatching null
                     val record = latest.record
@@ -260,6 +267,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val posture = SecurityPosture.evaluate(postureFindings)
+                    val scanMetrics = json.optJSONObject("scanMetrics")
                     val sentinel = ChangeSentinel.read(json)
                     val changes = sentinel.changes.map {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
@@ -279,7 +287,9 @@ class MainActivity : ComponentActivity() {
                         firstBaseline = schema < 2 || sentinel.isFirstBaseline,
                         history = history,
                         posture = posture,
-                        integrityStatus = latest.integrityStatus
+                        integrityStatus = latest.integrityStatus,
+                        scanDurationMs = scanMetrics?.optLong("durationMs") ?: 0L,
+                        appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0
                     )
                 }
             }
@@ -466,7 +476,11 @@ private fun SecurityOverview(
                             Metric("СРЕДНИЙ", report.mediumCount, ProAmber)
                             Metric("НИЗКИЙ", report.lowCount, ProMuted)
                         }
-                        Text("Всего записей: ${report.findings.size}", color = ProMuted, fontSize = 12.sp)
+                        Text(
+                            "Приложений: ${report.appCount} · сигналов: ${report.findings.size} · время: ${report.scanDurationMs} мс",
+                            color = ProMuted,
+                            fontSize = 12.sp
+                        )
                     } else {
                         Text(
                             "PRO SEC проверяет доступные сведения об установленных приложениях, специальных доступах, администраторах и VPN.",

@@ -98,6 +98,12 @@ data class ApkRisk(
     val level: String
 )
 
+data class ExportedComponentExposure(
+    val type: String,
+    val name: String,
+    val permission: String
+)
+
 data class ApkXRayReport(
     val packageName: String,
     val versionName: String,
@@ -106,14 +112,22 @@ data class ApkXRayReport(
     val minSdk: Int,
     val apkSha256: String,
     val signerSha256: List<String>,
+    val signerHistorySha256: List<String>,
+    val signerRotationResult: String,
+    val signerRotationExplanation: String,
     val installedVersionName: String?,
     val installedSignerMatch: Boolean?,
     val requestedPermissions: List<String>,
     val exportedComponents: Int,
+    val exportedWithoutPermission: Int,
+    val exportedComponentDetails: List<ExportedComponentExposure>,
     val dexSignals: List<String>,
     val dexFilesScanned: Int,
     val dexBytesScanned: Long,
     val dexScanTruncated: Boolean,
+    val dexScanDurationMs: Long,
+    val dexLimitReason: String?,
+    val threatIndicators: List<ThreatIndicator>,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
 )
@@ -165,28 +179,41 @@ object ApkXRay {
         val app = info.applicationInfo ?: throw IllegalArgumentException("В APK отсутствует ApplicationInfo.")
         val packageName = info.packageName.orEmpty()
         val requested = info.requestedPermissions.orEmpty().toList()
-        val signerCertificates = getSigners(info)
-        val signers = signerCertificates.map { sha256(it.toByteArray()) }
+        val signerProfile = readSigningLineage(info)
         val installedInfo = readInstalledPackageInfo(pm, packageName)
-        val installedSigners = installedInfo?.let { getSigners(it) }.orEmpty()
-        // Compare current signer certificates only. We do not infer trust from package name.
-        // Android key-rotation lineage validation is intentionally left for a later tested iteration.
-        val signerMatch = if (installedInfo == null || signerCertificates.isEmpty() || installedSigners.isEmpty()) {
-            null
-        } else {
-            signerCertificates.any { candidate ->
-                installedSigners.any { installed -> candidate.toByteArray().contentEquals(installed.toByteArray()) }
-            }
+        val installedProfile = installedInfo?.let(::readSigningLineage)
+        val lineageResult = SigningLineageComparator.compare(installedProfile, signerProfile)
+        val signerMatch = when (lineageResult) {
+            SigningLineageResult.EXACT_MATCH,
+            SigningLineageResult.VERIFIED_FORWARD_ROTATION,
+            SigningLineageResult.MULTI_SIGNER_MATCH -> true
+            SigningLineageResult.MISMATCH,
+            SigningLineageResult.HISTORICAL_SIGNER,
+            SigningLineageResult.MULTI_SIGNER_MISMATCH -> false
+            SigningLineageResult.UNKNOWN -> null
         }
-        val exported = (info.activities.orEmpty().count { it.exported } +
-            info.services.orEmpty().count { it.exported } +
-            info.receivers.orEmpty().count { it.exported } +
-            info.providers.orEmpty().count { it.exported })
+        val signers = signerProfile?.currentSigners.orEmpty().sorted()
+        val signerHistory = signerProfile?.history.orEmpty()
+        val exportedDetails = exportedComponentDetails(info)
+        val exported = exportedDetails.size
+        val exportedWithoutPermission = exportedDetails.count { it.permission.isBlank() }
+        val apkDigest = sha256(file)
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
+        val threatMatches = ThreatDatabaseStore(context).loadVerified()
+            ?.byPackageName?.get(packageName).orEmpty()
+            .filter { indicator ->
+                (indicator.apkSha256 == null || indicator.apkSha256.equals(apkDigest, ignoreCase = true)) &&
+                    (indicator.signerSha256 == null || signers.any {
+                        it.equals(indicator.signerSha256, ignoreCase = true)
+                    })
+            }
 
         val risks = mutableListOf<ApkRisk>()
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             risks += ApkRisk("Отладочная сборка", "APK помечен как debuggable. В пользовательском релизе это обычно не требуется.", "HIGH")
+        }
+        if (app.flags and android.content.pm.ApplicationInfo.FLAG_TEST_ONLY != 0) {
+            risks += ApkRisk("Тестовая сборка", "Манифест помечает APK как testOnly. Это нетипично для обычной пользовательской установки.", "MEDIUM")
         }
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC != 0) {
             risks += ApkRisk("Разрешён незашифрованный трафик", "Манифест допускает cleartext traffic. Это не доказывает передачу секретов, но требует проверки сетевого кода.", "MEDIUM")
@@ -194,27 +221,46 @@ object ApkXRay {
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP != 0) {
             risks += ApkRisk("Разрешено резервное копирование", "Манифест разрешает Android backup. Проверьте backup rules и типы хранимых данных.", "LOW")
         }
+        if (app.minSdkVersion <= 23) {
+            risks += ApkRisk("Низкий минимальный Android API", "APK заявляет поддержку Android API 23 или ниже. Оценивайте это вместе с target SDK и назначением приложения.", "LOW")
+        }
         if (exported > 0) {
-            risks += ApkRisk("Экспортируемые компоненты: $exported", "Экспортируемые Activity/Service/Receiver/Provider могут быть доступны другим приложениям. Проверьте permissions и intent filters.", "MEDIUM")
-        }
-        val sensitivePermissions = requested.filter { permission ->
-            permission in SENSITIVE_PERMISSIONS
-        }
-        if (sensitivePermissions.isNotEmpty()) {
             risks += ApkRisk(
-                "Чувствительные разрешения: ${sensitivePermissions.size}",
-                sensitivePermissions.joinToString("\n"),
-                "LOW"
+                "Экспортируемые компоненты: $exported",
+                "Без заданного permission: $exportedWithoutPermission. Проверьте назначение каждого экспортируемого компонента и требуемую защиту.",
+                if (exportedWithoutPermission > 0) "MEDIUM" else "LOW"
             )
+        }
+        val sensitivePermissions = requested.filter { it in SENSITIVE_PERMISSIONS }
+        if (sensitivePermissions.isNotEmpty()) {
+            risks += ApkRisk("Чувствительные разрешения: ${sensitivePermissions.size}", sensitivePermissions.joinToString("\n"), "LOW")
         }
         if (signers.isEmpty()) {
             risks += ApkRisk("Сертификат подписи не прочитан", "Не удалось извлечь сертификат APK. Сравнение издателя недоступно.", "MEDIUM")
         }
         if (installedInfo != null && signerMatch == false) {
+            val detail = when (lineageResult) {
+                SigningLineageResult.HISTORICAL_SIGNER ->
+                    "APK подписан историческим сертификатом из цепочки установленного пакета, но не текущим ключом. Возможен downgrade или старый пакет."
+                SigningLineageResult.MULTI_SIGNER_MISMATCH ->
+                    "Для multi-signer пакета набор сертификатов отличается. Модель ротации ключей для него не применяется."
+                else ->
+                    "Не найдена Android-подтверждённая цепочка ротации от установленного ключа к этому APK. Не устанавливайте файл до ручной проверки издателя."
+            }
+            risks += ApkRisk("Подпись не совпала с текущей цепочкой", detail, "HIGH")
+        }
+        if (lineageResult == SigningLineageResult.VERIFIED_FORWARD_ROTATION) {
             risks += ApkRisk(
-                "Подпись отличается от установленного приложения",
-                "Пакет уже установлен, но текущий сертификат APK не совпал с установленным сертификатом. Возможна легитимная ротация ключа, но без проверки цепочки подписи обновление требует ручной проверки издателя.",
-                "HIGH"
+                "Подтверждённая ротация ключа",
+                "Android предоставил proof-of-rotation, связывающий сертификат установленной версии с новым ключом APK. Это не является проверкой репутации издателя.",
+                "INFO"
+            )
+        }
+        threatMatches.forEach { indicator ->
+            risks += ApkRisk(
+                indicator.title,
+                "${indicator.detail}\nСовпадение подписанного индикатора: ${indicator.id}; confidence ${indicator.confidence}/100. Это не самостоятельное доказательство вредоносного поведения.",
+                indicator.severity
             )
         }
         return ApkXRayReport(
@@ -223,16 +269,24 @@ object ApkXRay {
             versionCode = readVersionCode(info),
             targetSdk = app.targetSdkVersion,
             minSdk = app.minSdkVersion,
-            apkSha256 = sha256(file),
+            apkSha256 = apkDigest,
             signerSha256 = signers,
+            signerHistorySha256 = signerHistory,
+            signerRotationResult = lineageResult.name,
+            signerRotationExplanation = signerExplanation(lineageResult),
             installedVersionName = installedInfo?.versionName,
             installedSignerMatch = signerMatch,
             requestedPermissions = requested,
             exportedComponents = exported,
+            exportedWithoutPermission = exportedWithoutPermission,
+            exportedComponentDetails = exportedDetails.take(30),
             dexSignals = dexScan?.signals.orEmpty(),
             dexFilesScanned = dexScan?.dexFilesScanned ?: 0,
             dexBytesScanned = dexScan?.bytesScanned ?: 0L,
             dexScanTruncated = dexScan?.truncated ?: true,
+            dexScanDurationMs = dexScan?.durationMs ?: 0L,
+            dexLimitReason = dexScan?.limitReason,
+            threatIndicators = threatMatches,
             risks = risks,
             fileSizeBytes = file.length()
         )
@@ -258,13 +312,51 @@ object ApkXRay {
     private fun readVersionCode(info: PackageInfo): Long =
         if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
-    @Suppress("DEPRECATION")
-    private fun getSigners(info: PackageInfo): List<android.content.pm.Signature> {
-        return if (Build.VERSION.SDK_INT >= 28) {
-            info.signingInfo?.apkContentsSigners?.toList().orEmpty()
-        } else {
-            info.signatures?.toList().orEmpty()
+    private fun readSigningLineage(info: PackageInfo): SigningLineage? {
+        if (Build.VERSION.SDK_INT >= 28) {
+            val signingInfo = info.signingInfo ?: return null
+            val current = signingInfo.apkContentsSigners.orEmpty()
+                .map { sha256(it.toByteArray()) }.toSet()
+            if (current.isEmpty()) return null
+            val multiple = signingInfo.hasMultipleSigners()
+            val history = if (multiple) current.toList() else {
+                signingInfo.signingCertificateHistory.orEmpty()
+                    .map { sha256(it.toByteArray()) }
+            }
+            return SigningLineage(current, history, multiple)
         }
+        @Suppress("DEPRECATION")
+        val current = info.signatures.orEmpty().map { sha256(it.toByteArray()) }.toSet()
+        return current.takeIf { it.isNotEmpty() }?.let { SigningLineage(it, it.toList(), false) }
+    }
+
+    private fun signerExplanation(result: SigningLineageResult): String = when (result) {
+        SigningLineageResult.EXACT_MATCH -> "Текущий набор сертификатов совпадает."
+        SigningLineageResult.VERIFIED_FORWARD_ROTATION -> "Android подтвердил цепочку ротации от текущего ключа установленной версии к ключу выбранного APK."
+        SigningLineageResult.HISTORICAL_SIGNER -> "Выбранный APK использует исторический сертификат из цепочки установленного приложения. Проверьте возможное понижение версии."
+        SigningLineageResult.MULTI_SIGNER_MATCH -> "Полный набор подписантов совпадает; используется точное сравнение."
+        SigningLineageResult.MULTI_SIGNER_MISMATCH -> "Набор подписантов отличается. Ротация ключей не применяется к multi-signer пакетам."
+        SigningLineageResult.MISMATCH -> "Цепочки сертификатов не совпадают."
+        SigningLineageResult.UNKNOWN -> "Android не предоставил достаточно данных для достоверного сравнения."
+    }
+
+    private fun exportedComponentDetails(info: PackageInfo): List<ExportedComponentExposure> {
+        val result = mutableListOf<ExportedComponentExposure>()
+        info.activities.orEmpty().filter { it.exported }.forEach {
+            result += ExportedComponentExposure("Activity", it.name.orEmpty(), it.permission.orEmpty())
+        }
+        info.services.orEmpty().filter { it.exported }.forEach {
+            result += ExportedComponentExposure("Service", it.name.orEmpty(), it.permission.orEmpty())
+        }
+        info.receivers.orEmpty().filter { it.exported }.forEach {
+            result += ExportedComponentExposure("Receiver", it.name.orEmpty(), it.permission.orEmpty())
+        }
+        info.providers.orEmpty().filter { it.exported }.forEach {
+            val permissions = listOfNotNull(it.permission, it.readPermission, it.writePermission)
+                .filter { value -> value.isNotBlank() }.distinct().joinToString(", ")
+            result += ExportedComponentExposure("Provider", it.name.orEmpty(), permissions)
+        }
+        return result
     }
 
     private fun sha256(bytes: ByteArray): String =

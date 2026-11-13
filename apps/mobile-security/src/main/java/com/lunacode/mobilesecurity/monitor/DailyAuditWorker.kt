@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.lunacode.mobilesecurity.data.ProSecDatabase
 import com.lunacode.mobilesecurity.data.ScanRecord
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
+import com.lunacode.mobilesecurity.intelligence.ThreatDatabaseStore
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.scanner.DeviceAuditScanner
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
@@ -51,7 +52,8 @@ class DailyAuditWorker(
                 ""
             }
 
-            val scanner = DeviceAuditScanner(applicationContext)
+            val threatDatabase = ThreatDatabaseStore(applicationContext).loadVerified()
+            val scanner = DeviceAuditScanner(applicationContext, threatDatabase)
             val findings = scanner.scan().toMutableList()
             if (previousPayloadUnreadable || (previousEnvelope?.wrapped == true && previousVerified != true)) {
                 findings += AuditFinding(

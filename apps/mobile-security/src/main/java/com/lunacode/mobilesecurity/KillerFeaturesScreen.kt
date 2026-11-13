@@ -103,9 +103,15 @@ fun KillerFeaturesScreen(
     var apkReport by remember { mutableStateOf<ApkXRayReport?>(null) }
     var apkLoading by remember { mutableStateOf(false) }
     var apkError by remember { mutableStateOf<String?>(null) }
-    var threatStatus by remember { mutableStateOf(ThreatDatabaseStore(context).statusDescription()) }
+    var threatStatus by remember { mutableStateOf("Проверка статуса локальной базы...") }
     var threatError by remember { mutableStateOf<String?>(null) }
     var threatImporting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(context) {
+        threatStatus = withContext(Dispatchers.IO) {
+            ThreatDatabaseStore(context).statusDescription()
+        }
+    }
 
     val threatPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -574,18 +580,14 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         InfoCard(
             report.packageName,
-            "Версия: ${report.versionName} (${report.versionCode})\nTarget SDK: ${report.targetSdk} · Min SDK: ${report.minSdk}\nРазмер: ${report.fileSizeBytes / 1024} KB\nЭкспортируемых компонентов: ${report.exportedComponents}\nРазрешений в манифесте: ${report.requestedPermissions.size}"
+            "Версия: ${report.versionName} (${report.versionCode})\nTarget SDK: ${report.targetSdk} · Min SDK: ${report.minSdk}\nРазмер: ${report.fileSizeBytes / 1024} KB\nЭкспортируемых компонентов: ${report.exportedComponents} · без permission: ${report.exportedWithoutPermission}\nРазрешений в манифесте: ${report.requestedPermissions.size}"
         )
         InfoCard(
-            "Проверка обновления / цепочки подписи",
-            when (report.installedSignerMatch) {
-                true -> "Пакет уже установлен (версия ${report.installedVersionName.orEmpty()}). Сертификат APK совпадает с установленной подписью или её подтверждённой цепочкой ротации."
-                false -> "Пакет уже установлен (версия ${report.installedVersionName.orEmpty()}), но подпись не совпала. Не устанавливайте этот файл до проверки издателя."
-                null -> if (report.installedVersionName == null) {
-                    "Это новый пакет либо установленная версия не найдена. Сравнить обновление с установленным приложением нельзя."
-                } else {
-                    "Пакет найден, но сертификат одной из версий не удалось сравнить."
-                }
+            "Проверка цепочки сертификатов: ${report.signerRotationResult}",
+            "${report.signerRotationExplanation}\n" + when (report.installedSignerMatch) {
+                true -> "Пакет уже установлен (${report.installedVersionName.orEmpty()}); совпадение или Android-подтверждённая ротация."
+                false -> "Пакет уже установлен (${report.installedVersionName.orEmpty()}); выбранный ключ не подтверждён как текущий. Проверьте APK до установки."
+                null -> "Установленная версия не найдена или Android не предоставил достаточно данных."
             }
         )
         InfoCard("SHA-256 APK", report.apkSha256)
@@ -595,18 +597,32 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
         ) { Text("КОПИРОВАТЬ SHA-256") }
         InfoCard(
-            "Отпечатки сертификатов",
+            "Текущие сертификаты",
             if (report.signerSha256.isEmpty()) "Сертификат подписи не прочитан." else report.signerSha256.joinToString("\n")
         )
         InfoCard(
+            "История сертификатов (старый → текущий)",
+            if (report.signerHistorySha256.isEmpty()) "История подписи недоступна." else report.signerHistorySha256.joinToString("\n")
+        )
+        if (report.exportedComponentDetails.isNotEmpty()) {
+            InfoCard(
+                "Экспортируемые компоненты",
+                report.exportedComponentDetails.joinToString("\n") {
+                    "${it.type}: ${it.name}\nЗаданное permission: ${it.permission.ifBlank { "не указано" }}"
+                } + if (report.exportedComponents > report.exportedComponentDetails.size) {
+                    "\nПоказаны первые ${report.exportedComponentDetails.size} компонентов."
+                } else ""
+            )
+        }
+        InfoCard(
             "DEX-анализ возможностей",
-            "Просмотрено DEX-файлов: ${report.dexFilesScanned} · Данных: ${report.dexBytesScanned / 1024} KB" +
-                if (report.dexScanTruncated) "\nАнализ ограничен лимитом размера или числа файлов." else ""
+            "Просмотрено DEX-файлов: ${report.dexFilesScanned} · данных: ${report.dexBytesScanned / 1024} KB · время: ${report.dexScanDurationMs} мс" +
+                if (report.dexScanTruncated) "\n${report.dexLimitReason ?: "Анализ ограничен лимитом размера или числа файлов."}" else ""
         )
         if (report.dexSignals.isEmpty()) {
             InfoCard(
                 "DEX API-индикаторы не найдены",
-                "В просмотренных DEX-данных не обнаружены проверяемые API-ссылки. Это не доказывает отсутствие таких возможностей: код может быть обфусцирован, упакован или загружаться динамически."
+                "В просмотренных DEX-данных не обнаружены проверяемые API-ссылки. Это не доказывает отсутствие возможностей: код может быть обфусцирован, упакован или загружаться динамически."
             )
         } else {
             report.dexSignals.forEach { signal ->
@@ -618,13 +634,28 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
                 )
             }
         }
+        if (report.threatIndicators.isNotEmpty()) {
+            report.threatIndicators.forEach { indicator ->
+                FeatureCard(
+                    "СОВПАДЕНИЕ ПОДПИСАННОЙ БАЗЫ · ${indicator.confidence}/100",
+                    indicator.title,
+                    "${indicator.detail}\nID: ${indicator.id}. Совпадение индикатора само по себе не доказывает вредоносное поведение.",
+                    when (indicator.severity) {
+                        "HIGH" -> KillerRed
+                        "MEDIUM" -> KillerAmber
+                        else -> KillerMuted
+                    }
+                )
+            }
+        }
         if (report.risks.isEmpty()) {
-            InfoCard("Явные статические индикаторы не найдены", "Это не подтверждает безопасность APK. Анализ ограничен метаданными и манифестом.")
+            InfoCard("Явные статические индикаторы не найдены", "Это не подтверждает безопасность APK. Анализ ограничен метаданными, сертификатами и статическими DEX-признаками.")
         } else {
             report.risks.forEach { risk ->
                 val color = when (risk.level) {
                     "HIGH" -> KillerRed
                     "MEDIUM" -> KillerAmber
+                    "INFO" -> KillerGreen
                     else -> KillerMuted
                 }
                 FeatureCard(risk.level, risk.title, risk.detail, color)
