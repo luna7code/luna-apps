@@ -3,6 +3,7 @@
 ## New capabilities
 
 - Explainable local Exposure Index with severity breakdown and prioritized actions.
+- FORENSIC SEAL: AES-GCM encrypted reports additionally receive an Android Keystore HMAC-SHA256 chain, with history-link verification and safe baseline reset when a previous seal fails.
 - Device Integrity checks for secure screen lock and test-keys build metadata.
 - Explicit limitation reporting for ADB / Developer Options because Android does not expose their state to ordinary third-party apps.
 - Input Trust inventory for enabled input methods and current default keyboard.
