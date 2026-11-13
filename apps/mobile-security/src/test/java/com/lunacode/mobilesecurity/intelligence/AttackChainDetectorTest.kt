@@ -19,6 +19,16 @@ class AttackChainDetectorTest {
         assertEquals("HIGH", result.single().severity)
     }
 
+    @Test fun newAppRegisteredAsInputMethodGetsDedicatedExplanation() {
+        val result = AttackChainDetector.detect(listOf(
+            signal("install", ThreatSignalType.APP_INSTALLED, 1_000L),
+            signal("ime", ThreatSignalType.INPUT_METHOD_ENABLED, 2_000L)
+        ))
+        assertEquals(74, result.single().confidenceScore)
+        assertEquals("Новое приложение зарегистрировано как способ ввода", result.single().title)
+        assertTrue(result.single().explanation.contains("способа ввода"))
+    }
+
     @Test fun signerChangeWithSensitiveAccessHasHighestRuleScore() {
         val result = AttackChainDetector.detect(listOf(
             signal("signer", ThreatSignalType.SIGNER_CHANGED, 1_000L),

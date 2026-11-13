@@ -109,14 +109,20 @@ object AttackChainDetector {
 
     private fun chainTitle(types: Set<ThreatSignalType>): String = when {
         ThreatSignalType.SIGNER_CHANGED in types -> "Изменение идентичности и специальные доступы"
+        ThreatSignalType.APP_INSTALLED in types && ThreatSignalType.INPUT_METHOD_ENABLED in types ->
+            "Новое приложение зарегистрировано как способ ввода"
+        ThreatSignalType.INPUT_METHOD_ENABLED in types -> "Новый способ ввода требует проверки"
         ThreatSignalType.APP_INSTALLED in types -> "Новое приложение получило специальные доступы"
-        ThreatSignalType.INPUT_METHOD_ENABLED in types -> "Новое приложение или способ ввода требует проверки"
         else -> "Связанные изменения безопасности приложения"
     }
 
     private fun chainExplanation(types: Set<ThreatSignalType>): String {
         val reasons = buildList {
-            if (ThreatSignalType.APP_INSTALLED in types) add("обнаружена установка приложения")
+            if (ThreatSignalType.APP_INSTALLED in types && ThreatSignalType.INPUT_METHOD_ENABLED in types) {
+                add("обнаружена установка приложения, зарегистрированного как способ ввода")
+            } else if (ThreatSignalType.APP_INSTALLED in types) {
+                add("обнаружена установка приложения")
+            }
             if (ThreatSignalType.SIGNER_CHANGED in types) add("изменился сертификат подписи")
             if (ThreatSignalType.SENSITIVE_PERMISSION_CHANGED in types) add("изменились чувствительные разрешения")
             if (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types) add("появился специальный доступ")
