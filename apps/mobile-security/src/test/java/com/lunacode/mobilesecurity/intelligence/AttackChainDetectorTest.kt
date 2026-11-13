@@ -59,13 +59,19 @@ class AttackChainDetectorTest {
         assertTrue(result.isEmpty())
     }
 
-    @Test fun rejectsNegativeAndFutureOverflowProneTimestamps() {
+    @Test fun rejectsNegativeTimestamps() {
         val result = AttackChainDetector.detect(listOf(
             signal("negative", ThreatSignalType.APP_INSTALLED, -1L),
-            signal("access", ThreatSignalType.SPECIAL_ACCESS_ENABLED, 2L),
-            signal("install", ThreatSignalType.APP_INSTALLED, Long.MAX_VALUE),
-            signal("mic", ThreatSignalType.APP_OP_MICROPHONE, Long.MAX_VALUE)
+            signal("access", ThreatSignalType.SPECIAL_ACCESS_ENABLED, 2L)
         ))
+        assertTrue(result.isEmpty())
+    }
+
+    @Test fun distantExtremeTimestampsDoNotCorrelate() {
+        val result = AttackChainDetector.detect(listOf(
+            signal("install", ThreatSignalType.APP_INSTALLED, 0L),
+            signal("mic", ThreatSignalType.APP_OP_MICROPHONE, Long.MAX_VALUE)
+        ), windowMillis = Long.MAX_VALUE / 2L)
         assertTrue(result.isEmpty())
     }
 

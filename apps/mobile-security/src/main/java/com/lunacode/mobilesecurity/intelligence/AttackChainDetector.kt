@@ -114,7 +114,7 @@ object AttackChainDetector {
             if (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types) add("появился специальный доступ")
             if (ThreatSignalType.OVERLAY_ACCESS_ENABLED in types) add("обнаружен доступ к отображению поверх других приложений")
             if (ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types) add("обнаружен доступ к содержимому уведомлений")
-            if (ThreatSignalType.INPUT_METHOD_ENABLED in types) add("обнаружен включённый способ ввода")
+            if (ThreatSignalType.INPUT_METHOD_ENABLED in types) add("приложение зарегистрировано в качестве способа ввода")
             if (ThreatSignalType.VPN_CONFIGURATION_CHANGED in types) add("изменилась конфигурация VPN")
             if (ThreatSignalType.APP_OP_CAMERA in types) add("разрешена операция камеры")
             if (ThreatSignalType.APP_OP_MICROPHONE in types) add("разрешена операция микрофона")
