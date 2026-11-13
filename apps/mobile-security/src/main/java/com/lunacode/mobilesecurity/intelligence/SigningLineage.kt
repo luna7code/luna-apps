@@ -3,7 +3,7 @@ package com.lunacode.mobilesecurity.intelligence
 data class SigningLineage(
     val currentSigners: Set<String>,
     val history: List<String>,
-    val multipleSigners: Boolean
+    val multipleSigners: Boolean?
 )
 
 enum class SigningLineageResult {
@@ -18,13 +18,19 @@ object SigningLineageComparator {
             installed.currentSigners.isEmpty() || candidate.currentSigners.isEmpty()
         ) return SigningLineageResult.UNKNOWN
 
-        if (installed.multipleSigners || candidate.multipleSigners) {
-            return if (installed.multipleSigners && candidate.multipleSigners &&
-                installed.currentSigners == candidate.currentSigners
-            ) SigningLineageResult.MULTI_SIGNER_MATCH
-            else SigningLineageResult.MULTI_SIGNER_MISMATCH
+        if (installed.currentSigners == candidate.currentSigners) {
+            return if (installed.multipleSigners == true && candidate.multipleSigners == true) {
+                SigningLineageResult.MULTI_SIGNER_MATCH
+            } else {
+                SigningLineageResult.EXACT_MATCH
+            }
         }
-        if (installed.currentSigners == candidate.currentSigners) return SigningLineageResult.EXACT_MATCH
+        if (installed.multipleSigners == true || candidate.multipleSigners == true) {
+            return SigningLineageResult.MULTI_SIGNER_MISMATCH
+        }
+        if (installed.multipleSigners == null || candidate.multipleSigners == null) {
+            return SigningLineageResult.UNKNOWN
+        }
 
         val installedHistory = installed.history.ifEmpty { installed.currentSigners.toList() }
         val candidateHistory = candidate.history.ifEmpty { candidate.currentSigners.toList() }

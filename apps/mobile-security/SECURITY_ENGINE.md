@@ -33,6 +33,14 @@ The scanner uses Android PackageManager and system settings exposed to ordinary 
 
 Severity labels and the Exposure Index describe observed attack-surface indicators. They are not a malware probability. Requested permissions, declared services, API references and known remote-support packages may be legitimate and require context.
 
+## Change Sentinel signer-lineage semantics
+
+- New snapshots preserve the current signer set, Android's proof-of-rotation history and the multi-signer flag when the platform exposes them.
+- Android API 28+ single-signer history is stored in the platform-provided original-to-current rotation order. Multi-signer packages are represented as an exact signer set and are never treated as a rotatable single-signer chain.
+- A verified forward rotation is informational. A historical signer, unrelated signer or multi-signer set mismatch remains a high-priority review item.
+- Historic snapshots without the multi-signer field remain unknown for changed signer sets; PRO SEC does not infer a valid rotation from missing history.
+- Below API 28, only current legacy signatures are available and rotation remains unverified.
+
 ## APK X-RAY
 
 APK X-RAY analyzes a user-selected APK locally without installing or executing it.
@@ -61,7 +69,7 @@ PRO SEC supports a manually imported, signed offline indicator feed. No network 
 - Feed signature is SHA256withRSA over exact UTF-8/LF-framed content. Metadata, package names, optional APK/signer SHA-256 digests, severity, confidence, title and detail are strictly validated.
 - Feed size is capped at 4 MiB and indicator count at 20,000. Duplicate IDs, invalid hashes, malformed fields, unknown keys, altered content and older versions are rejected.
 - Imported feed data is encrypted locally with AES-GCM and written using AtomicFile. The saved version counter blocks ordinary import rollback.
-- Matching can require package ID only, or the stronger APK/signer hashes. APK files are hashed only for packages whose feed entries require an APK digest; the digest is computed once per package scan.
+- Matching can require package ID only, or the stronger APK/signer hashes. Matching filters package and signer first, then requests at most one APK SHA-256 calculation per package when a surviving indicator requires it. APK X-RAY reuses its already calculated digest.
 - A match is an indicator requiring review, not proof of malicious execution.
 
 No public-key trust root or threat feed is bundled by default. The feature remains inactive until the user pins the actual publisher key and imports a feed signed by that key. Full rollback protection against restoration of an older complete application-data image or device/Keystore compromise is not possible for an ordinary app.
@@ -70,7 +78,7 @@ The exact feed format is documented in `THREAT_DATABASE_FORMAT.md`.
 
 ## Change Sentinel and history integrity
 
-- Change Sentinel compares package install/removal, version/update metadata, signer fingerprints, permission-state digest and newly appearing audit findings.
+- Change Sentinel compares package install/removal, version/update metadata, signer lineage (where Android exposes it), permission-state digest and newly appearing audit findings.
 - A valid empty package inventory is compared normally; a missing inventory field is treated as unavailable data, not as an empty list.
 - Reports are encrypted with AES-GCM using an Android Keystore key. The payload codec uses a 12-byte nonce and a 128-bit authentication tag.
 - Each current report is separately sealed with HMAC-SHA256 using another Android Keystore key and references the previous tag.

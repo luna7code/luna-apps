@@ -29,3 +29,11 @@
 - APK X-RAY test corpus, including malformed and multi-signer APK files.
 
 This is a private-distribution development build. Do not treat it as a stable release until CI passes and the release variant is signed with the persistent private release key.
+
+
+## Development update — 2026-11-13
+
+- Change Sentinel distinguishes Android-verified forward certificate rotation from an unrelated signer replacement and a historical signer.
+- Historic reports without signer-lineage metadata remain explicitly unverified when signer identity changes.
+- Offline threat-feed matching filters by package and signer before hashing; APK SHA-256 is computed at most once per package only when required by a surviving indicator.
+- This development phase is validated through GitHub Actions before it is eligible for the main branch. Physical Huawei Pura 70 testing and private release signing remain separate gates.

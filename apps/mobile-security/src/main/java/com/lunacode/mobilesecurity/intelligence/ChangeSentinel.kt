@@ -7,7 +7,9 @@ data class SentinelChange(val kind: String, val title: String, val detail: Strin
 data class SentinelReport(val isFirstBaseline: Boolean, val changes: List<SentinelChange>)
 data class SentinelApp(
     val packageName: String, val label: String, val version: String, val signer: String,
-    val permissions: String, val installer: String, val updatedAt: Long
+    val permissions: String, val installer: String, val updatedAt: Long,
+    val signerHistory: String = signer,
+    val multipleSigners: Boolean? = null
 )
 data class SentinelSnapshot(
     val schema: Int, val inventoryPresent: Boolean, val apps: List<SentinelApp>,
@@ -75,24 +77,46 @@ object ChangeSentinel {
         }
         (before.keys intersect after.keys).sorted().forEach { packageName ->
             val old = before.getValue(packageName); val new = after.getValue(packageName)
-            when {
-                old.signer.isNotBlank() && new.signer.isNotBlank() && old.signer != new.signer ->
-                    changes += SentinelChange(
-                        "signer_changed", "Изменился сертификат приложения: ${new.label}",
-                        "Отпечаток сертификата подписи отличается от предыдущего снимка. Это может быть легитимная ротация ключа, но требует проверки.",
-                        "HIGH"
-                    )
-                old.permissions.isNotBlank() && new.permissions.isNotBlank() && old.permissions != new.permissions ->
-                    changes += SentinelChange(
-                        "permissions_changed", "Изменились разрешения приложения: ${new.label}",
-                        "Состав запрошенных или предоставленных разрешений отличается от предыдущего снимка. Проверьте, какие возможности добавлены или сняты.",
-                        "MEDIUM"
-                    )
-                old.version != new.version || old.updatedAt != new.updatedAt ->
-                    changes += SentinelChange(
-                        "updated", "Обновлено приложение: ${new.label}",
-                        "Версия или время обновления изменились с предыдущего снимка.", "INFO"
-                    )
+            if (old.signer.isNotBlank() && new.signer.isNotBlank()) {
+                when (compareSignerLineage(old, new)) {
+                    SigningLineageResult.VERIFIED_FORWARD_ROTATION ->
+                        changes += SentinelChange(
+                            "signer_rotated", "Подтверждена ротация ключа приложения: ${new.label}",
+                            "Android подтвердил proof-of-rotation от предыдущего сертификата к текущему. Это штатная ротация подписи, а не самостоятельный признак компрометации.",
+                            "INFO"
+                        )
+                    SigningLineageResult.HISTORICAL_SIGNER ->
+                        changes += SentinelChange(
+                            "signer_historical", "Обнаружен исторический сертификат приложения: ${new.label}",
+                            "Текущий APK использует сертификат из предыдущей истории подписи, но не последний известный ключ. Возможны downgrade или установка старой сборки; проверьте версию и источник.",
+                            "HIGH"
+                        )
+                    SigningLineageResult.MISMATCH, SigningLineageResult.MULTI_SIGNER_MISMATCH ->
+                        changes += SentinelChange(
+                            "signer_changed", "Изменился сертификат приложения: ${new.label}",
+                            "Новый набор сертификатов не совпадает с предыдущей идентичностью; Android не подтвердил допустимую ротацию. Проверьте издателя и источник APK.",
+                            "HIGH"
+                        )
+                    SigningLineageResult.UNKNOWN ->
+                        changes += SentinelChange(
+                            "signer_change_unverified", "Изменился сертификат приложения: ${new.label}",
+                            "В снимках недостаточно данных о multi-signer/истории сертификатов. Легитимную ротацию подтвердить нельзя; проверьте издателя вручную.",
+                            "MEDIUM"
+                        )
+                    SigningLineageResult.EXACT_MATCH, SigningLineageResult.MULTI_SIGNER_MATCH -> Unit
+                }
+            }
+            if (old.permissions.isNotBlank() && new.permissions.isNotBlank() && old.permissions != new.permissions) {
+                changes += SentinelChange(
+                    "permissions_changed", "Изменились разрешения приложения: ${new.label}",
+                    "Состав запрошенных или предоставленных разрешений отличается от предыдущего снимка. Проверьте, какие возможности добавлены или сняты.",
+                    "MEDIUM"
+                )
+            } else if (old.version != new.version || old.updatedAt != new.updatedAt) {
+                changes += SentinelChange(
+                    "updated", "Обновлено приложение: ${new.label}",
+                    "Версия или время обновления изменились с предыдущего снимка.", "INFO"
+                )
             }
         }
         (current.findingIds - previous.findingIds).sorted().forEach { id ->
@@ -103,6 +127,27 @@ object ChangeSentinel {
         }
         return changes
     }
+
+    private fun compareSignerLineage(previous: SentinelApp, current: SentinelApp): SigningLineageResult {
+        val previousSigners = parseSignerList(previous.signer).toSet()
+        val currentSigners = parseSignerList(current.signer).toSet()
+        if (previousSigners.isEmpty() || currentSigners.isEmpty()) return SigningLineageResult.UNKNOWN
+        return SigningLineageComparator.compare(
+            SigningLineage(
+                currentSigners = previousSigners,
+                history = parseSignerList(previous.signerHistory).ifEmpty { previousSigners.toList() },
+                multipleSigners = previous.multipleSigners
+            ),
+            SigningLineage(
+                currentSigners = currentSigners,
+                history = parseSignerList(current.signerHistory).ifEmpty { currentSigners.toList() },
+                multipleSigners = current.multipleSigners
+            )
+        )
+    }
+
+    private fun parseSignerList(value: String): List<String> =
+        value.split(',').map { it.trim() }.filter { it.isNotBlank() }
 
     private fun snapshot(json: JSONObject): SentinelSnapshot {
         val appsArray = json.optJSONArray("apps")
@@ -119,11 +164,19 @@ object ChangeSentinel {
                 val app = array.optJSONObject(index) ?: continue
                 val packageName = app.optString("packageName")
                 if (packageName.isBlank()) continue
+                val multipleSigners = if (app.has("multipleSigners")) {
+                    runCatching { app.getBoolean("multipleSigners") }.getOrNull()
+                } else null
                 add(SentinelApp(
-                    packageName, app.optString("label", packageName),
-                    app.optString("version", ""), app.optString("signerSha256", ""),
-                    app.optString("permissionsSha256", ""), app.optString("installerPackage", ""),
-                    app.optLong("lastUpdateTime")
+                    packageName = packageName,
+                    label = app.optString("label", packageName),
+                    version = app.optString("version", ""),
+                    signer = app.optString("signerSha256", ""),
+                    permissions = app.optString("permissionsSha256", ""),
+                    installer = app.optString("installerPackage", ""),
+                    updatedAt = app.optLong("lastUpdateTime"),
+                    signerHistory = app.optString("signerHistorySha256", ""),
+                    multipleSigners = multipleSigners
                 ))
             }
         }

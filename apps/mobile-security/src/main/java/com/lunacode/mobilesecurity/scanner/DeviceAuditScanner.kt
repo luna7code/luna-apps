@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import com.lunacode.mobilesecurity.intelligence.DeviceIntegrityInspector
+import com.lunacode.mobilesecurity.intelligence.ThreatIndicatorMatcher
 import com.lunacode.mobilesecurity.intelligence.VerifiedThreatDatabase
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,6 +24,12 @@ class DeviceAuditScanner(
     private var appInventory: JSONArray = JSONArray()
     private var lastAppCount: Int = 0
     private var lastDurationMs: Long = 0L
+
+    private data class SigningProfile(
+        val currentSigners: List<String>,
+        val history: List<String>,
+        val multipleSigners: Boolean?
+    )
 
     fun scan(): List<AuditFinding> {
         val startedAt = SystemClock.elapsedRealtime()
@@ -74,7 +81,8 @@ class DeviceAuditScanner(
             val appInfo = info.applicationInfo ?: return@forEach
             val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
             val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
-            val signerDigests = signerFingerprints(info)
+            val signingProfile = signingProfile(info)
+            val signerDigests = signingProfile.currentSigners
             val permissionNames = info.requestedPermissions.orEmpty()
             val permissionState = permissionNames.mapIndexed { index, permission ->
                 val granted = (info.requestedPermissionsFlags?.getOrNull(index)
@@ -96,6 +104,8 @@ class DeviceAuditScanner(
                 put("label", label)
                 put("version", "${info.versionName.orEmpty()}:${versionCode(info)}")
                 put("signerSha256", signerDigests.sorted().joinToString(","))
+                put("signerHistorySha256", signingProfile.history.joinToString(","))
+                signingProfile.multipleSigners?.let { put("multipleSigners", it) }
                 put("permissionsSha256", permissionDigest)
                 put("installerPackage", installer)
                 put("lastUpdateTime", info.lastUpdateTime)
@@ -161,23 +171,21 @@ class DeviceAuditScanner(
             }
 
             val packageIndicators = threatDatabase?.byPackageName?.get(packageName).orEmpty()
-            val apkHashForIndicators = if (packageIndicators.any { it.apkSha256 != null }) {
+            val matchedIndicators = ThreatIndicatorMatcher.match(
+                packageName = packageName,
+                signerDigests = signerDigests.toSet(),
+                indicators = packageIndicators
+            ) {
                 runCatching { sha256(File(appInfo.sourceDir)) }.getOrNull()
-            } else null
-            packageIndicators.forEach { indicator ->
-                val signerMatches = indicator.signerSha256 == null ||
-                    signerDigests.any { it.equals(indicator.signerSha256, ignoreCase = true) }
-                val apkMatches = indicator.apkSha256 == null ||
-                    apkHashForIndicators?.equals(indicator.apkSha256, ignoreCase = true) == true
-                if (signerMatches && apkMatches) {
-                    findings += AuditFinding(
-                        id = "offline-threat-${indicator.id}",
-                        title = indicator.title,
-                        detail = "${indicator.detail}\nСовпали признаки подписанной офлайн-базы: пакет $packageName; confidence ${indicator.confidence}/100. Это совпадение индикатора, а не доказательство исполнения вредоносного кода.",
-                        severity = indicator.severity,
-                        source = "OfflineThreatDatabase:${indicator.id}"
-                    )
-                }
+            }
+            matchedIndicators.forEach { indicator ->
+                findings += AuditFinding(
+                    id = "offline-threat-${indicator.id}",
+                    title = indicator.title,
+                    detail = "${indicator.detail}\nСовпали признаки подписанной офлайн-базы: пакет $packageName; confidence ${indicator.confidence}/100. Это совпадение индикатора, а не доказательство исполнения вредоносного кода.",
+                    severity = indicator.severity,
+                    source = "OfflineThreatDatabase:${indicator.id}"
+                )
             }
         }
 
@@ -212,13 +220,34 @@ class DeviceAuditScanner(
         if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     @Suppress("DEPRECATION")
-    private fun signerFingerprints(info: PackageInfo): List<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= 28) {
-            info.signingInfo?.apkContentsSigners?.toList().orEmpty()
-        } else {
-            info.signatures?.toList().orEmpty()
+    private fun signingProfile(info: PackageInfo): SigningProfile {
+        if (Build.VERSION.SDK_INT >= 28) {
+            val signingInfo = info.signingInfo
+                ?: return SigningProfile(emptyList(), emptyList(), null)
+            if (signingInfo.hasMultipleSigners()) {
+                val current = signingInfo.apkContentsSigners.orEmpty()
+                    .map { sha256(it.toByteArray()) }
+                    .sorted()
+                return SigningProfile(current, current, true)
+            }
+            val history = signingInfo.signingCertificateHistory.orEmpty()
+                .map { sha256(it.toByteArray()) }
+            if (history.isNotEmpty()) {
+                return SigningProfile(
+                    currentSigners = listOf(history.last()),
+                    history = history,
+                    multipleSigners = false
+                )
+            }
+            val fallback = signingInfo.apkContentsSigners.orEmpty()
+                .map { sha256(it.toByteArray()) }
+                .sorted()
+            return SigningProfile(fallback, fallback, false)
         }
-        return signatures.map { sha256(it.toByteArray()) }
+        val legacy = info.signatures.orEmpty()
+            .map { sha256(it.toByteArray()) }
+            .sorted()
+        return SigningProfile(legacy, legacy, null)
     }
 
     private fun sha256(bytes: ByteArray): String =

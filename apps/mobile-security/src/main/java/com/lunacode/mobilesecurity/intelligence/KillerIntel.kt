@@ -199,14 +199,13 @@ object ApkXRay {
         val exportedWithoutPermission = exportedDetails.count { it.permission.isBlank() }
         val apkDigest = sha256(file)
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
-        val threatMatches = ThreatDatabaseStore(context).loadVerified()
+        val feedIndicators = ThreatDatabaseStore(context).loadVerified()
             ?.byPackageName?.get(packageName).orEmpty()
-            .filter { indicator ->
-                (indicator.apkSha256 == null || indicator.apkSha256.equals(apkDigest, ignoreCase = true)) &&
-                    (indicator.signerSha256 == null || signers.any {
-                        it.equals(indicator.signerSha256, ignoreCase = true)
-                    })
-            }
+        val threatMatches = ThreatIndicatorMatcher.match(
+            packageName = packageName,
+            signerDigests = signers.toSet(),
+            indicators = feedIndicators
+        ) { apkDigest }
 
         val risks = mutableListOf<ApkRisk>()
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
