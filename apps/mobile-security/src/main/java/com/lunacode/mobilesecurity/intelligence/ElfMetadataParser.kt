@@ -53,7 +53,8 @@ internal object ElfMetadataParser {
         val headerSize = if (is64) 64 else 52
         if (bytes.size < headerSize) return Result(null, null, emptyList(), emptyList(), 0, listOf("Truncated ELF header"))
 
-        val phoff = if (is64) u64(bytes, 32, endian) else u32(bytes, 28, endian)
+        val phoff = (if (is64) u64(bytes, 32, endian) else u32(bytes, 28, endian))
+            ?: return Result(null, null, emptyList(), emptyList(), 0, listOf("Invalid ELF program-header offset"))
         val ehsize = u16(bytes, if (is64) 52 else 40, endian)
         val phentsize = u16(bytes, if (is64) 54 else 42, endian)
         val phnum = u16(bytes, if (is64) 56 else 44, endian)
@@ -115,7 +116,7 @@ internal object ElfMetadataParser {
         }
         var textRelocations = tags.any { (tag, _) -> tag == DT_TEXTREL }
         val flagsValue = tags.firstOrNull { it.first == DT_FLAGS }?.second
-        if (flagsValue != null && flagsValue and DF_TEXTREL != 0L) textRelocations = true
+        if (flagsValue != null && (flagsValue and DF_TEXTREL) != 0L) textRelocations = true
 
         val strtabVaddr = tags.firstOrNull { it.first == DT_STRTAB }?.second
         val strsz = tags.firstOrNull { it.first == DT_STRSZ }?.second ?: 0L
