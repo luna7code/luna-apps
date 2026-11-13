@@ -240,13 +240,15 @@ object ApkXRay {
     @Suppress("DEPRECATION")
     private fun readInstalledPackageInfo(pm: PackageManager, packageName: String): PackageInfo? {
         return runCatching {
-            if (Build.VERSION.SDK_INT >= 33) {
-                pm.getPackageInfo(
-                    packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
-                )
+            val flags = if (Build.VERSION.SDK_INT >= 28) {
+                PackageManager.GET_SIGNING_CERTIFICATES
             } else {
-                pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                PackageManager.GET_SIGNATURES
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                pm.getPackageInfo(packageName, flags)
             }
         }.getOrNull()
     }
