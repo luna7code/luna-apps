@@ -165,22 +165,14 @@ object ApkXRay {
         val signers = signerCertificates.map { sha256(it.toByteArray()) }
         val installedInfo = readInstalledPackageInfo(pm, packageName)
         val installedSigners = installedInfo?.let { getSigners(it) }.orEmpty()
+        // Compare current signer certificates only. We do not infer trust from package name.
+        // Android key-rotation lineage validation is intentionally left for a later tested iteration.
         val signerMatch = if (installedInfo == null || signerCertificates.isEmpty() || installedSigners.isEmpty()) {
             null
         } else {
-            val sameCertificate = signerCertificates.any { candidate ->
+            signerCertificates.any { candidate ->
                 installedSigners.any { installed -> candidate.toByteArray().contentEquals(installed.toByteArray()) }
             }
-            val validLineage = if (!sameCertificate && Build.VERSION.SDK_INT >= 28) {
-                val candidateSigningInfo = info.signingInfo
-                installedSigners.any { installed ->
-                    candidateSigningInfo?.hasSigningCertificate(
-                        installed.toByteArray(),
-                        android.content.pm.SigningInfo.CERT_INPUT_RAW_X509
-                    ) == true
-                }
-            } else false
-            sameCertificate || validLineage
         }
         val exported = (info.activities.orEmpty().count { it.exported } +
             info.services.orEmpty().count { it.exported } +
@@ -216,7 +208,7 @@ object ApkXRay {
         if (installedInfo != null && signerMatch == false) {
             risks += ApkRisk(
                 "Подпись отличается от установленного приложения",
-                "Пакет уже установлен, но сертификат APK не совпал с текущей подписью или доступной цепочкой ротации. Не устанавливайте обновление, пока не проверите издателя.",
+                "Пакет уже установлен, но текущий сертификат APK не совпал с установленным сертификатом. Возможна легитимная ротация ключа, но без проверки цепочки подписи обновление требует ручной проверки издателя.",
                 "HIGH"
             )
         }
@@ -327,7 +319,7 @@ object ControlSurfaceInspector {
 
         val notificationListeners = Settings.Secure.getString(
             context.contentResolver,
-            Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+            "enabled_notification_listeners"
         ).orEmpty()
         notificationListeners.split(':').filter { it.isNotBlank() }.forEach { component ->
             val packageName = component.substringBefore('/')
