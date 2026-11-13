@@ -22,4 +22,23 @@ class OfflineLinkInspectorTest {
         assertTrue(result.indicators.any { it.contains("user-info") })
         assertTrue(result.host.contains("evil.example"))
     }
+
+    @Test
+    fun flagsPunycodeDomain() {
+        val result = OfflineLinkInspector.inspect("https://xn--80ak6aa92e.com")
+        assertTrue(result.indicators.any { it.contains("Punycode") })
+    }
+
+    @Test
+    fun flagsIpAddress() {
+        val result = OfflineLinkInspector.inspect("https://192.0.2.10/login")
+        assertTrue(result.indicators.any { it.contains("IPv4") })
+    }
+
+    @Test
+    fun flagsNonWebSchemesWithoutOpeningThem() {
+        val result = OfflineLinkInspector.inspect("javascript:alert(1)")
+        assertTrue(result.indicators.any { it.contains("Необычная схема") })
+        assertTrue(result.host.contains("нет домена"))
+    }
 }
