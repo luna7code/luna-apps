@@ -3,9 +3,10 @@ package com.lunacode.mobilesecurity.security
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import org.json.JSONObject
+import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import java.security.MessageDigest
+import java.util.Base64 as JavaBase64
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.SecretKey
@@ -18,31 +19,61 @@ data class ReportEnvelope(
 )
 
 object ReportEnvelopeCodec {
-    fun encode(previousTag: String, report: String, chainTag: String): String =
-        JSONObject().apply {
-            put("chainVersion", 1)
-            put("previousTag", previousTag)
-            put("chainTag", chainTag)
-            put("report", report)
-        }.toString()
+    private const val PREFIX = "PROSEC-CHAIN-1"
+
+    /**
+     * Pure-JVM framing keeps this codec testable outside Android.
+     * Each field is URL-safe Base64, so the four-line envelope is unambiguous.
+     */
+    fun encode(previousTag: String, report: String, chainTag: String): String {
+        val encoder = JavaBase64.getUrlEncoder().withoutPadding()
+        fun field(value: String): String =
+            encoder.encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+        return listOf(
+            PREFIX,
+            field(previousTag),
+            field(chainTag),
+            field(report)
+        ).joinToString("\n")
+    }
 
     fun decode(stored: String): ReportEnvelope {
-        val outer = runCatching { JSONObject(stored) }.getOrNull()
-        if (outer?.optInt("chainVersion") == 1 && outer.has("report")) {
+        if (!stored.startsWith("$PREFIX\n")) {
             return ReportEnvelope(
-                report = outer.optString("report"),
-                previousTag = outer.optString("previousTag"),
-                chainTag = outer.optString("chainTag").takeIf { it.isNotBlank() },
-                wrapped = true
+                report = stored,
+                previousTag = "",
+                chainTag = null,
+                wrapped = false
             )
         }
-        return ReportEnvelope(
-            report = stored,
-            previousTag = "",
-            chainTag = null,
-            wrapped = false
-        )
+
+        val fields = stored.split('\n')
+        if (fields.size != 4 || fields[0] != PREFIX) {
+            return malformedEnvelope()
+        }
+
+        return runCatching {
+            val decoder = JavaBase64.getUrlDecoder()
+            fun field(value: String): String =
+                String(decoder.decode(value), StandardCharsets.UTF_8)
+
+            ReportEnvelope(
+                report = field(fields[3]),
+                previousTag = field(fields[1]),
+                chainTag = field(fields[2]).takeIf { it.isNotBlank() },
+                wrapped = true
+            )
+        }.getOrElse {
+            malformedEnvelope()
+        }
     }
+
+    private fun malformedEnvelope() = ReportEnvelope(
+        report = "",
+        previousTag = "",
+        chainTag = null,
+        wrapped = true
+    )
 
     fun material(previousTag: String, report: String): String =
         previousTag + "\n" + report
