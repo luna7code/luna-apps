@@ -48,7 +48,7 @@ object StaticStringIndicatorScanner {
     )
 
     private val urlPattern = Regex(
-        """(?i)https?://[A-Z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]{4,}"""
+        """(?i)https?://[A-Z0-9._~:/?#\[\]@![A-Z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]'()*+,;=%-]{4,}"""
     )
     private val candidateExtensions = setOf(
         "dex", "xml", "json", "txt", "html", "htm", "js", "properties", "cfg", "conf", "so"
