@@ -693,6 +693,16 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             report.packageName,
             "Версия: ${report.versionName} (${report.versionCode})\nTarget SDK: ${report.targetSdk} · Min SDK: ${report.minSdk}\nРазмер: ${report.fileSizeBytes / 1024} KB\nЭкспортируемых компонентов: ${report.exportedComponents} · без permission: ${report.exportedWithoutPermission}\nРазрешений в манифесте: ${report.requestedPermissions.size}"
         )
+        if (report.requestedPermissionAssessments.isNotEmpty()) {
+            InfoCard(
+                "Protection levels · Android device registry",
+                report.requestedPermissionAssessments.take(40).joinToString("\n") {
+                    "${it.name}\n${it.protectionLevel} · owner: ${it.ownerPackage ?: "не разрешён"}"
+                } + if (report.requestedPermissionAssessments.size > 40) {
+                    "\nПоказаны первые 40 разрешений."
+                } else ""
+            )
+        }
         InfoCard(
             "Проверка цепочки сертификатов: ${report.signerRotationResult}",
             "${report.signerRotationExplanation}\n" + when (report.installedSignerMatch) {
