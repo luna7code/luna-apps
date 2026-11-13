@@ -56,3 +56,16 @@ This is a private-distribution development build. Do not treat it as a stable re
 - Added UI sections for native ABI/ELF information, archive warnings, manifest permissions and intent filters.
 - Added tests for ELF architecture, invalid ELF data, nested APK detection, malformed ZIP files, and malformed binary manifests.
 - Static-only: no extraction to persistent storage, installation, execution, INTERNET permission, telemetry, or cloud upload.
+
+## PRO SEC development update — APK X-RAY hardening
+
+- Added bounded ELF32/ELF64 program-header parsing, PT_GNU_STACK executable-stack state, PT_DYNAMIC / DT_NEEDED extraction, dynamic symbol sampling, and DT_TEXTREL / DF_TEXTREL indicators.
+- APK reports now display NX / executable / unknown stack state, text relocation state, dependencies and sampled dynamic symbols.
+- Hardened ZIP path accounting with canonical duplicate-path detection and overflow-safe declared-size limits.
+- Hardened Binary XML chunk offset arithmetic and bounded string-pool entries.
+- Added Android PackageManager resolution of requested permission protection levels, including explicit UNRESOLVED state when the current device cannot resolve a permission.
+- Added deterministic malformed ELF and Binary XML property corpora plus ZIP-bomb and duplicate-path regression cases.
+- Split APK entries remain candidate detections only; package/version/signing-lineage reconciliation across all splits is not complete.
+- Full GNU-hash symbol traversal, relocation-table analysis and coverage-guided fuzzing remain future work.
+- Static-only: no installation, native-code execution, INTERNET permission, telemetry or cloud upload.
+- CI and device verification are pending for this update. Do not treat this work as a release.
