@@ -768,6 +768,26 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
                 )
             }
         }
+        InfoCard(
+            "Архив и native-библиотеки",
+            "Записей ZIP: ${report.nativeLibraries.size} native-библиотек · вложенных APK: ${report.nestedApkEntries.size}" +
+                if (report.archiveTruncated) "\\nАнализ ограничен лимитами." else ""
+        )
+        report.nativeLibraries.forEach { library ->
+            FeatureCard(
+                "NATIVE · ${library.abi}",
+                library.path,
+                "ELF: ${library.machineName} · class ${library.elfClass}" +
+                    if (library.warnings.isEmpty()) "\\nЯвных структурных индикаторов не найдено." else "\\n${library.warnings.joinToString("; ")}",
+                if (library.warnings.isEmpty()) KillerMuted else KillerAmber
+            )
+        }
+        if (report.nestedApkEntries.isNotEmpty()) {
+            InfoCard("Вложенные APK / split-кандидаты", report.nestedApkEntries.joinToString("\\n"))
+        }
+        report.archiveWarnings.forEach { warning ->
+            FeatureCard("ZIP · ПРОВЕРИТЬ", warning, "Структурный индикатор архива. Сам по себе не доказывает вредоносное содержимое.", KillerAmber)
+        }
         if (report.threatIndicators.isNotEmpty()) {
             report.threatIndicators.forEach { indicator ->
                 FeatureCard(
