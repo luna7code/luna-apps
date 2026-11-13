@@ -1,88 +1,51 @@
 package com.lunacode.mobilesecurity.intelligence
 
 enum class ThreatSignalType {
-    APP_INSTALLED,
-    SPECIAL_ACCESS_ENABLED,
-    SENSITIVE_PERMISSION_CHANGED,
-    SIGNER_CHANGED,
-    INPUT_METHOD_ENABLED,
-    NOTIFICATION_ACCESS_ENABLED,
-    OVERLAY_ACCESS_ENABLED,
-    VPN_CONFIGURATION_CHANGED,
-    APP_OP_CAMERA,
-    APP_OP_MICROPHONE,
-    APP_OP_LOCATION,
-    APP_OP_BACKGROUND_LOCATION,
-    APP_OP_BLUETOOTH,
-    APP_OP_MEDIA
+    APP_INSTALLED, SPECIAL_ACCESS_ENABLED, SENSITIVE_PERMISSION_CHANGED, SIGNER_CHANGED,
+    INPUT_METHOD_ENABLED, NOTIFICATION_ACCESS_ENABLED, OVERLAY_ACCESS_ENABLED,
+    VPN_CONFIGURATION_CHANGED, APP_OP_CAMERA, APP_OP_MICROPHONE, APP_OP_LOCATION,
+    APP_OP_BACKGROUND_LOCATION, APP_OP_BLUETOOTH, APP_OP_MEDIA, APP_OP_INSTALL_PACKAGES,
+    APP_OP_MANAGE_STORAGE
 }
 
 enum class EvidenceQuality(val score: Int) {
-    /** Timestamped change event with a package identity from the local inventory. */
     DIRECT_CHANGE(100),
-    /** Current-state observation; the original activation time is unknown. */
     CURRENT_STATE(65),
-    /** Inferred or weakly attributed evidence. */
     INFERRED(30)
 }
 
 data class ThreatSignal(
-    val id: String,
-    val packageName: String?,
-    val type: ThreatSignalType,
-    val occurredAtMillis: Long,
-    val severity: String,
-    val summary: String,
+    val id: String, val packageName: String?, val type: ThreatSignalType,
+    val occurredAtMillis: Long, val severity: String, val summary: String,
     val evidenceQuality: EvidenceQuality = EvidenceQuality.DIRECT_CHANGE
 )
 
 data class AttackChain(
-    val packageName: String,
-    val signals: List<ThreatSignal>,
-    val title: String,
-    val explanation: String,
-    /** Rule strength, not a probability of compromise. */
-    val confidenceScore: Int,
-    /** Mean provenance quality of the signals, independent from rule strength. */
-    val evidenceQualityScore: Int,
-    val severity: String
+    val packageName: String, val signals: List<ThreatSignal>, val title: String,
+    val explanation: String, /** Rule strength, not a probability of compromise. */
+    val confidenceScore: Int, /** Mean provenance quality, independent from rule strength. */
+    val evidenceQualityScore: Int, val severity: String
 )
 
 object AttackChainDetector {
     private const val DEFAULT_WINDOW_MILLIS = 72L * 60L * 60L * 1000L
 
-    fun detect(
-        signals: List<ThreatSignal>,
-        windowMillis: Long = DEFAULT_WINDOW_MILLIS
-    ): List<AttackChain> {
+    fun detect(signals: List<ThreatSignal>, windowMillis: Long = DEFAULT_WINDOW_MILLIS): List<AttackChain> {
         if (windowMillis < 0L) return emptyList()
         val result = mutableListOf<AttackChain>()
         signals.asSequence()
-            .filter {
-                !it.packageName.isNullOrBlank() &&
-                    it.id.isNotBlank() &&
-                    it.occurredAtMillis >= 0L
-            }
-            .groupBy { it.packageName!! }
-            .toSortedMap()
+            .filter { !it.packageName.isNullOrBlank() && it.id.isNotBlank() && it.occurredAtMillis >= 0L }
+            .groupBy { it.packageName!! }.toSortedMap()
             .forEach { (packageName, packageSignals) ->
-                val ordered = packageSignals
-                    .distinctBy { it.id }
-                    .sortedBy { it.occurredAtMillis }
+                val ordered = packageSignals.distinctBy { it.id }.sortedBy { it.occurredAtMillis }
                 correlatedGroups(ordered, windowMillis).forEach { group ->
                     val types = group.map { it.type }.toSet()
                     val score = evidenceScore(types)
-                    if (score > 0) {
-                        result += AttackChain(
-                            packageName = packageName,
-                            signals = group,
-                            title = chainTitle(types),
-                            explanation = chainExplanation(types),
-                            confidenceScore = score,
-                            evidenceQualityScore = group.map { it.evidenceQuality.score }.average().toInt(),
-                            severity = group.maxByOrNull { severityRank(it.severity) }?.severity ?: "INFO"
-                        )
-                    }
+                    if (score > 0) result += AttackChain(
+                        packageName, group, chainTitle(types), chainExplanation(types), score,
+                        group.map { it.evidenceQuality.score }.average().toInt(),
+                        group.maxByOrNull { severityRank(it.severity) }?.severity ?: "INFO"
+                    )
                 }
             }
         return result.sortedWith(
@@ -101,8 +64,7 @@ object AttackChainDetector {
                 withinWindow(signals[start].occurredAtMillis, it.occurredAtMillis, windowMillis)
             }
             val types = group.map { it.type }.toSet()
-            val signature = group.map { it.id }.toSet()
-            if (types.size >= 2 && evidenceScore(types) > 0 && seen.add(signature)) {
+            if (types.size >= 2 && evidenceScore(types) > 0 && seen.add(group.map { it.id }.toSet())) {
                 groups += group
             }
         }
@@ -113,30 +75,24 @@ object AttackChainDetector {
         start >= 0L && end >= start && end - start <= windowMillis
 
     private fun isSensitiveAccess(type: ThreatSignalType): Boolean = when (type) {
-        ThreatSignalType.SPECIAL_ACCESS_ENABLED,
-        ThreatSignalType.INPUT_METHOD_ENABLED,
-        ThreatSignalType.NOTIFICATION_ACCESS_ENABLED,
-        ThreatSignalType.OVERLAY_ACCESS_ENABLED,
-        ThreatSignalType.APP_OP_CAMERA,
-        ThreatSignalType.APP_OP_MICROPHONE,
-        ThreatSignalType.APP_OP_LOCATION,
-        ThreatSignalType.APP_OP_BACKGROUND_LOCATION,
-        ThreatSignalType.APP_OP_BLUETOOTH,
-        ThreatSignalType.APP_OP_MEDIA -> true
+        ThreatSignalType.SPECIAL_ACCESS_ENABLED, ThreatSignalType.INPUT_METHOD_ENABLED,
+        ThreatSignalType.NOTIFICATION_ACCESS_ENABLED, ThreatSignalType.OVERLAY_ACCESS_ENABLED,
+        ThreatSignalType.APP_OP_CAMERA, ThreatSignalType.APP_OP_MICROPHONE,
+        ThreatSignalType.APP_OP_LOCATION, ThreatSignalType.APP_OP_BACKGROUND_LOCATION,
+        ThreatSignalType.APP_OP_BLUETOOTH, ThreatSignalType.APP_OP_MEDIA,
+        ThreatSignalType.APP_OP_INSTALL_PACKAGES, ThreatSignalType.APP_OP_MANAGE_STORAGE -> true
         else -> false
     }
 
     private fun evidenceScore(types: Set<ThreatSignalType>): Int {
-        val hasSensitiveAccess = types.any(::isSensitiveAccess)
+        val sensitive = types.any(::isSensitiveAccess)
         return when {
-            ThreatSignalType.SIGNER_CHANGED in types && hasSensitiveAccess -> 90
-            ThreatSignalType.APP_INSTALLED in types && hasSensitiveAccess -> 78
+            ThreatSignalType.SIGNER_CHANGED in types && sensitive -> 90
             ThreatSignalType.APP_INSTALLED in types && ThreatSignalType.INPUT_METHOD_ENABLED in types -> 74
-            ThreatSignalType.SENSITIVE_PERMISSION_CHANGED in types && hasSensitiveAccess -> 72
-            ThreatSignalType.INPUT_METHOD_ENABLED in types &&
-                ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types -> 68
-            ThreatSignalType.SPECIAL_ACCESS_ENABLED in types &&
-                ThreatSignalType.VPN_CONFIGURATION_CHANGED in types -> 60
+            ThreatSignalType.APP_INSTALLED in types && sensitive -> 78
+            ThreatSignalType.SENSITIVE_PERMISSION_CHANGED in types && sensitive -> 72
+            ThreatSignalType.INPUT_METHOD_ENABLED in types && ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types -> 68
+            ThreatSignalType.SPECIAL_ACCESS_ENABLED in types && ThreatSignalType.VPN_CONFIGURATION_CHANGED in types -> 60
             else -> 0
         }
     }
@@ -166,6 +122,8 @@ object AttackChainDetector {
             if (ThreatSignalType.APP_OP_BACKGROUND_LOCATION in types) add("разрешено фоновое местоположение")
             if (ThreatSignalType.APP_OP_BLUETOOTH in types) add("разрешено сканирование Bluetooth")
             if (ThreatSignalType.APP_OP_MEDIA in types) add("разрешён доступ к медиаданным")
+            if (ThreatSignalType.APP_OP_INSTALL_PACKAGES in types) add("разрешён запрос установки пакетов")
+            if (ThreatSignalType.APP_OP_MANAGE_STORAGE in types) add("разрешён широкий доступ к файлам")
         }
         return "В пределах одного временного окна ${reasons.joinToString("; ")}. " +
             "Это сочетание требует проверки, но само по себе не доказывает заражение или слежку."
