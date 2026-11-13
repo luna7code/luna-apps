@@ -47,3 +47,12 @@ This is a private-distribution development build. Do not treat it as a stable re
 - Expanded the APK X-RAY screen with extracted URLs and string findings.
 - Added JVM tests for URL extraction, indicator grouping, ignored archive entries, and bounded reads. CI validation is pending for the final branch head.
 - No APK installation or execution. No INTERNET permission, telemetry, or cloud upload added.
+
+## APK X-RAY expansion
+
+- Added bounded ZIP inventory and ELF header inspection for native .so entries.
+- Added detection of nested APK/split candidates, unsafe archive paths, high compression ratios, and truncated scans.
+- Added best-effort binary AndroidManifest parsing for package/SDK values, declared custom permission protection levels, intent filters, and App Link autoVerify declarations.
+- Added UI sections for native ABI/ELF information, archive warnings, manifest permissions and intent filters.
+- Added tests for ELF architecture, invalid ELF data, nested APK detection, malformed ZIP files, and malformed binary manifests.
+- Static-only: no extraction to persistent storage, installation, execution, INTERNET permission, telemetry, or cloud upload.
