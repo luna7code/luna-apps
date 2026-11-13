@@ -42,8 +42,11 @@ object AttackChainSignalAdapter {
                     finding.id.removePrefix("notification-listener-")
                 finding.id.startsWith("admin-") && finding.id != "admin-none" ->
                     finding.id.removePrefix("admin-")
+                finding.id.startsWith("input-method-") && finding.id != "input-method-none" ->
+                    finding.id.removePrefix("input-method-")
                 else -> null
             }?.takeIf { it.isNotBlank() } ?: return@forEach
+            if (finding.id.startsWith("input-method-") && finding.severity == "INFO") return@forEach
             val type = when {
                 finding.id.startsWith("notification-listener-") -> ThreatSignalType.NOTIFICATION_ACCESS_ENABLED
                 finding.id.startsWith("input-method-") -> ThreatSignalType.INPUT_METHOD_ENABLED

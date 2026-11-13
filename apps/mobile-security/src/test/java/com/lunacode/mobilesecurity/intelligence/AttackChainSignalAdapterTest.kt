@@ -62,6 +62,19 @@ class AttackChainSignalAdapterTest {
     }
 
     @Test
+    fun ignoresSystemInputMethodWhenCorrelatingWithNotificationAccess() {
+        val chains = AttackChainSignalAdapter.detect(
+            findings = listOf(
+                AuditFinding("input-method-com.android.keyboard", "System keyboard", "System IME", "INFO", "com.android.keyboard"),
+                AuditFinding("notification-listener-com.android.keyboard", "Listener", "Enabled listener", "MEDIUM", "com.android.keyboard/Listener")
+            ),
+            changes = emptyList(),
+            observedAtMillis = 30_000L
+        )
+        assertTrue(chains.isEmpty())
+    }
+
+    @Test
     fun doesNotTreatDeclaredButDisabledServicesAsEnabledAccess() {
         val chains = AttackChainSignalAdapter.detect(
             findings = listOf(
