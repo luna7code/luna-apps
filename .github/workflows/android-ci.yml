@@ -3,9 +3,28 @@ name: Android CI
 on:
   push:
     branches: [main]
+    paths:
+      - "apps/mobile-security/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/android-ci.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "apps/mobile-security/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/android-ci.yml"
   workflow_dispatch:
+
+concurrency:
+  group: pro-sec-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build-debug-apk:
@@ -24,6 +43,6 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: luna-mobile-security-debug
+          name: pro-sec-debug-apk
           path: apps/mobile-security/build/outputs/apk/debug/*.apk
           if-no-files-found: error
