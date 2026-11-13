@@ -4,7 +4,7 @@ Monorepo for LUNA CODE applications.
 
 ## Applications
 
-- `apps/mobile-security` — LUNA MOBILE SECURITY for Android (Kotlin, Jetpack Compose).
+- `apps/mobile-security` — PRO SEC for Android (Kotlin, Jetpack Compose).
 
 ## Principles
 
