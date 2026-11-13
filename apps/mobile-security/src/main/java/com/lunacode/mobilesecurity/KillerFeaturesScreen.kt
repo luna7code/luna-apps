@@ -38,7 +38,12 @@ import com.lunacode.mobilesecurity.intelligence.ApkXRay
 import com.lunacode.mobilesecurity.intelligence.ApkXRayReport
 import com.lunacode.mobilesecurity.intelligence.ControlSurface
 import com.lunacode.mobilesecurity.intelligence.ControlSurfaceInspector
+import com.lunacode.mobilesecurity.intelligence.DeviceIntegrityInspector
+import com.lunacode.mobilesecurity.intelligence.DeviceIntegritySignal
+import com.lunacode.mobilesecurity.intelligence.InputTrustInspector
+import com.lunacode.mobilesecurity.intelligence.InputTrustReport
 import com.lunacode.mobilesecurity.intelligence.LinkInspection
+import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.intelligence.OfflineLinkInspector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,7 +76,8 @@ fun KillerFeaturesScreen(
     changes: List<KillerChangeUi>,
     firstBaseline: Boolean,
     hasReport: Boolean,
-    history: List<KillerHistoryUi>
+    history: List<KillerHistoryUi>,
+    postureReport: SecurityPostureReport?
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -80,6 +86,10 @@ fun KillerFeaturesScreen(
     var controlSurfaces by remember { mutableStateOf<List<ControlSurface>?>(null) }
     var controlLoading by remember { mutableStateOf(false) }
     var controlError by remember { mutableStateOf<String?>(null) }
+    var deviceSignals by remember { mutableStateOf<List<DeviceIntegritySignal>?>(null) }
+    var inputTrust by remember { mutableStateOf<InputTrustReport?>(null) }
+    var deviceTrustError by remember { mutableStateOf<String?>(null) }
+    var inputTrustError by remember { mutableStateOf<String?>(null) }
 
     var linkInput by remember { mutableStateOf("") }
     var linkResult by remember { mutableStateOf<LinkInspection?>(null) }
@@ -129,6 +139,10 @@ fun KillerFeaturesScreen(
                 )
                 Text("Все проверки выполняются на устройстве. Сетевых запросов нет.", color = KillerGreen, fontSize = 11.sp)
             }
+        }
+
+        if (postureReport != null) {
+            item { SecurityPostureCard(postureReport, compact = false) }
         }
 
         item {
@@ -211,7 +225,83 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "02 · CHANGE SENTINEL",
+                "03 · DEVICE INTEGRITY",
+                "Целостность и базовая защита устройства",
+                "Проверяет признаки test-keys и наличие защищённой блокировки экрана. Состояние ADB не имитируется: Android скрывает его от сторонних приложений."
+            )
+            Button(
+                onClick = {
+                    deviceTrustError = null
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { DeviceIntegrityInspector.inspect(context) }
+                        }
+                        result.onSuccess { deviceSignals = it }
+                            .onFailure { deviceTrustError = it.message ?: "Не удалось проверить устройство." }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = KillerGreen, contentColor = KillerBlack)
+            ) { Text("ПРОВЕРИТЬ ЦЕЛОСТНОСТЬ УСТРОЙСТВА") }
+            deviceTrustError?.let { Text(it, color = KillerRed, fontSize = 12.sp) }
+            deviceSignals?.forEach { signal ->
+                val tone = when (signal.severity) {
+                    "HIGH" -> KillerRed
+                    "MEDIUM" -> KillerAmber
+                    else -> KillerMuted
+                }
+                FeatureCard(signal.severity, signal.title, signal.detail, tone)
+            }
+        }
+
+        item {
+            FeatureHeader(
+                "04 · INPUT TRUST",
+                "Проверка доверия к клавиатуре",
+                "Показывает текущую выбранную и все включённые клавиатуры. Клавиатура обрабатывает вводимый текст; её наличие само по себе не означает слежку."
+            )
+            Button(
+                onClick = {
+                    inputTrustError = null
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { InputTrustInspector.inspect(context) }
+                        }
+                        result.onSuccess { inputTrust = it }
+                            .onFailure { inputTrustError = it.message ?: "Не удалось прочитать список клавиатур." }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = KillerGreen, contentColor = KillerBlack)
+            ) { Text("ПРОВЕРИТЬ КЛАВИАТУРЫ") }
+            inputTrustError?.let { Text(it, color = KillerRed, fontSize = 12.sp) }
+            inputTrust?.let { trust ->
+                val active = trust.methods.firstOrNull { it.active }
+                InfoCard(
+                    "Текущая клавиатура",
+                    active?.let { "${it.label}\n${it.packageName}\n${if (it.systemApp) "Системное приложение" else "Стороннее приложение"}" }
+                        ?: "Android не сообщил активную клавиатуру."
+                )
+                Text("ВКЛЮЧЕНО КЛАВИАТУР: ${trust.methods.size}", color = KillerAmber, fontSize = 11.sp)
+                trust.methods.forEach { method ->
+                    FeatureCard(
+                        if (method.active) "ТЕКУЩАЯ КЛАВИАТУРА" else if (method.systemApp) "СИСТЕМНАЯ · ВКЛЮЧЕНА" else "СТОРОННЯЯ · ВКЛЮЧЕНА",
+                        method.label,
+                        method.packageName,
+                        if (method.active && !method.systemApp) KillerAmber else KillerMuted
+                    )
+                }
+            }
+            Button(
+                onClick = { openSystemSettings(context, Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = KillerPanel, contentColor = KillerWhite)
+            ) { Text("ОТКРЫТЬ НАСТРОЙКИ КЛАВИАТУР") }
+        }
+
+        item {
+            FeatureHeader(
+                "05 · CHANGE SENTINEL",
                 "Память изменений устройства",
                 "Сравнивает текущий снимок с предыдущим: новые и удалённые приложения, обновления и смену сертификата подписи. Данные остаются зашифрованными в локальной истории."
             )
@@ -240,7 +330,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "03 · TRUST TIMELINE",
+                "06 · TRUST TIMELINE",
                 "Хронология состояния",
                 "Последние локальные снимки помогают сопоставить, когда появились индикаторы и когда менялся состав приложений."
             )
@@ -260,7 +350,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "04 · APK X-RAY",
+                "07 · APK X-RAY",
                 "Рентген APK до установки",
                 "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256 файла и отпечатки сертификатов. Файл не устанавливается."
             )
@@ -276,7 +366,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "05 · LINK MIRROR",
+                "08 · LINK MIRROR",
                 "Проверка ссылки без интернета",
                 "Анализирует структуру адреса: HTTP, маскировку через user-info, Punycode, короткие ссылки, IP вместо домена и нестандартные порты. Не открывает ссылку."
             )
@@ -313,7 +403,7 @@ fun KillerFeaturesScreen(
 
         item {
             FeatureHeader(
-                "06 · PURA GUARD",
+                "09 · PURA GUARD",
                 "Режим устойчивой защиты Huawei",
                 "Профиль настройки фоновой работы для Pura 70. Он не обходит ограничения батареи и не включает скрытые разрешения — только открывает системные экраны и даёт проверяемые шаги."
             )
