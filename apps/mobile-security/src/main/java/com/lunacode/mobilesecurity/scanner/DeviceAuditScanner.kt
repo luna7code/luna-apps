@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.provider.Settings
+import com.lunacode.mobilesecurity.intelligence.DeviceIntegrityInspector
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -19,8 +20,10 @@ class DeviceAuditScanner(private val context: Context) {
         val findings = mutableListOf<AuditFinding>()
         scanInstalledApps(findings)
         scanAccessibility(findings)
+        scanNotificationListeners(findings)
         scanDeviceAdmins(findings)
         scanVpn(findings)
+        scanDeviceIntegrity(findings)
         findings += AuditFinding(
             id = "scope-root",
             title = "Границы проверки без root",
@@ -185,6 +188,50 @@ class DeviceAuditScanner(private val context: Context) {
                 detail = "Системная настройка не содержит включённых сервисов специальных возможностей.",
                 severity = "INFO",
                 source = "Settings.Secure"
+            )
+        }
+    }
+
+    private fun scanNotificationListeners(findings: MutableList<AuditFinding>) {
+        val raw = Settings.Secure.getString(
+            context.contentResolver,
+            "enabled_notification_listeners"
+        ).orEmpty()
+        val listeners = raw.split(':').filter { it.isNotBlank() }
+        listeners.forEach { component ->
+            val packageName = component.substringBefore('/')
+            val label = runCatching {
+                context.packageManager.getApplicationLabel(
+                    context.packageManager.getApplicationInfo(packageName, 0)
+                ).toString()
+            }.getOrDefault(packageName)
+            findings += AuditFinding(
+                id = "notification-listener-$packageName",
+                title = "Приложение читает уведомления: $label",
+                detail = "Включён Notification Listener. Он может получать содержимое уведомлений, включая личные сообщения и одноразовые коды. Проверьте, доверяете ли вы этому приложению.",
+                severity = "MEDIUM",
+                source = component
+            )
+        }
+        if (listeners.isEmpty()) {
+            findings += AuditFinding(
+                id = "notification-listener-none",
+                title = "Слушатели уведомлений не обнаружены",
+                detail = "Android не сообщил включённых сторонних Notification Listener.",
+                severity = "INFO",
+                source = "Settings.Secure"
+            )
+        }
+    }
+
+    private fun scanDeviceIntegrity(findings: MutableList<AuditFinding>) {
+        DeviceIntegrityInspector.inspect(context).forEach { signal ->
+            findings += AuditFinding(
+                id = signal.id,
+                title = signal.title,
+                detail = signal.detail,
+                severity = signal.severity,
+                source = "DeviceIntegrityInspector"
             )
         }
     }
