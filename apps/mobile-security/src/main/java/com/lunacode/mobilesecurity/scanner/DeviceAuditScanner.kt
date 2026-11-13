@@ -61,9 +61,9 @@ class DeviceAuditScanner(private val context: Context) {
             val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
             val signer = signerFingerprints(info).joinToString(",")
             val permissionState = info.requestedPermissions.orEmpty().mapIndexed { index, permission ->
-                val granted = info.requestedPermissionsFlags
+                val granted = (info.requestedPermissionsFlags
                     ?.getOrNull(index)
-                    ?.and(PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
+                    ?.and(PackageInfo.REQUESTED_PERMISSION_GRANTED) ?: 0) != 0
                 "$permission:$granted"
             }.sorted().joinToString("|")
             val permissionDigest = MessageDigest.getInstance("SHA-256")
