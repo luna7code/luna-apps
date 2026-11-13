@@ -272,7 +272,8 @@ private fun SecurityHome(
             } else {
                 KillerFeaturesScreen(
                     changes = report?.changes.orEmpty(),
-                    firstBaseline = report?.firstBaseline ?: true
+                    firstBaseline = report?.firstBaseline ?: true,
+                    hasReport = report != null
                 )
             }
         }
