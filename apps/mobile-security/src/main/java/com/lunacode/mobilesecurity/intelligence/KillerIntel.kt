@@ -104,6 +104,12 @@ data class ExportedComponentExposure(
     val permission: String
 )
 
+data class RequestedPermissionAssessment(
+    val name: String,
+    val protectionLevel: String,
+    val ownerPackage: String?
+)
+
 data class ApkXRayReport(
     val packageName: String,
     val versionName: String,
@@ -118,6 +124,7 @@ data class ApkXRayReport(
     val installedVersionName: String?,
     val installedSignerMatch: Boolean?,
     val requestedPermissions: List<String>,
+    val requestedPermissionAssessments: List<RequestedPermissionAssessment>,
     val exportedComponents: Int,
     val exportedWithoutPermission: Int,
     val exportedComponentDetails: List<ExportedComponentExposure>,
@@ -189,6 +196,7 @@ object ApkXRay {
         val app = info.applicationInfo ?: throw IllegalArgumentException("В APK отсутствует ApplicationInfo.")
         val packageName = info.packageName.orEmpty()
         val requested = info.requestedPermissions.orEmpty().toList()
+        val permissionAssessments = resolveRequestedPermissions(pm, requested)
         val signerProfile = readSigningLineage(info)
         val installedInfo = readInstalledPackageInfo(pm, packageName)
         val installedProfile = installedInfo?.let(::readSigningLineage)
@@ -342,6 +350,7 @@ object ApkXRay {
             installedVersionName = installedInfo?.versionName,
             installedSignerMatch = signerMatch,
             requestedPermissions = requested,
+            requestedPermissionAssessments = permissionAssessments,
             exportedComponents = exported,
             exportedWithoutPermission = exportedWithoutPermission,
             exportedComponentDetails = exportedDetails.take(30),
@@ -365,6 +374,50 @@ object ApkXRay {
             risks = risks,
             fileSizeBytes = file.length()
         )
+    }
+
+    private fun resolveRequestedPermissions(
+        pm: PackageManager,
+        permissions: List<String>
+    ): List<RequestedPermissionAssessment> = permissions.distinct().take(200).map { name ->
+        val info = runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                pm.getPermissionInfo(name, PackageManager.PermissionInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPermissionInfo(name, 0)
+            }
+        }.getOrNull()
+        if (info == null) {
+            RequestedPermissionAssessment(name, "UNRESOLVED · отсутствует в реестре устройства", null)
+        } else {
+            val base = when (info.protectionLevel and 0x0f) {
+                0 -> "NORMAL"
+                1 -> "DANGEROUS"
+                2 -> "SIGNATURE"
+                3 -> "SIGNATURE_OR_SYSTEM (legacy)"
+                else -> "UNKNOWN"
+            }
+            val flags = mutableListOf<String>()
+            val flagNames = listOf(
+                0x10 to "PRIVILEGED", 0x20 to "DEVELOPMENT", 0x40 to "APPOP",
+                0x80 to "PRE23", 0x100 to "INSTALLER", 0x200 to "VERIFIER",
+                0x400 to "PREINSTALLED", 0x800 to "SETUP",
+                0x1000 to "INSTANT", 0x2000 to "RUNTIME_ONLY",
+                0x4000 to "OEM", 0x8000 to "VENDOR_PRIVILEGED",
+                0x10000 to "TEXT_CLASSIFIER", 0x20000 to "CONFIGURATOR",
+                0x40000 to "INCIDENT_REPORT_APPROVER", 0x80000 to "APPROVER",
+                0x100000 to "ROLE", 0x800000 to "KNOWN_SIGNER"
+            )
+            flagNames.forEach { (mask, label) ->
+                if (info.protectionLevel and mask != 0) flags += label
+            }
+            RequestedPermissionAssessment(
+                name,
+                if (flags.isEmpty()) base else "$base | ${flags.joinToString()}",
+                info.packageName
+            )
+        }
     }
 
     @Suppress("DEPRECATION")
