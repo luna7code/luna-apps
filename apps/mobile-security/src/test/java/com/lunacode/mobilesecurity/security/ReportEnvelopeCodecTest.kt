@@ -47,6 +47,14 @@ class ReportEnvelopeCodecTest {
     }
 
     @Test
+    fun nonJsonPayloadDoesNotDowngradeToLegacy() {
+        val decoded = ReportEnvelopeCodec.decode("XROSEC-CHAIN-1\\ncorrupted")
+        assertTrue(decoded.wrapped)
+        assertNull(decoded.chainTag)
+        assertEquals("", decoded.report)
+    }
+
+    @Test
     fun signatureMaterialBindsPreviousTagAndReport() {
         val report = """{"schema":2}"""
         val first = ReportEnvelopeCodec.material("tag-a", report)
