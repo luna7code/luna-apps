@@ -65,18 +65,12 @@ private val ProRed = Color(0xFFFF6B6B)
 private const val MANUAL_SCAN_WORK = "pro-sec-manual-audit"
 
 private data class FindingUi(val title: String, val detail: String, val severity: String)
-private data class ScanHistoryUi(
-    val scannedAt: Long,
-    val findingCount: Int,
-    val changeCount: Int
-)
-
 private data class ScanReportUi(
     val scannedAt: Long,
     val findings: List<FindingUi>,
     val changes: List<KillerChangeUi>,
     val firstBaseline: Boolean,
-    val history: List<ScanHistoryUi>
+    val history: List<KillerHistoryUi>
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -177,7 +171,7 @@ class MainActivity : ComponentActivity() {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
                     }
                     val history = decoded.map { (scanRecord, scanJson) ->
-                        ScanHistoryUi(
+                        KillerHistoryUi(
                             scannedAt = scanRecord.scannedAt,
                             findingCount = scanJson.optInt("findingCount"),
                             changeCount = scanJson.optInt("changeCount")
