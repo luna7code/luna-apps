@@ -788,6 +788,25 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
         report.archiveWarnings.forEach { warning ->
             FeatureCard("ZIP · ПРОВЕРИТЬ", warning, "Структурный индикатор архива. Сам по себе не доказывает вредоносное содержимое.", KillerAmber)
         }
+        report.binaryManifest?.let { manifest ->
+            InfoCard(
+                "Binary AndroidManifest",
+                "Package: ${manifest.packageName ?: "не прочитан"} · minSdk: ${manifest.minSdk ?: "?"} · targetSdk: ${manifest.targetSdk ?: "?"}" +
+                    "\\nОбъявлено permission: ${manifest.declaredPermissions.size} · intent-filters: ${manifest.intentFilters.size}"
+            )
+            manifest.declaredPermissions.filter { it.second != null }.forEach { (name, level) ->
+                InfoCard("Объявленное permission", "$name\\nprotectionLevel: $level")
+            }
+            manifest.intentFilters.forEach { filter ->
+                FeatureCard(
+                    if (filter.autoVerify) "APP LINK · AUTO VERIFY" else "INTENT FILTER",
+                    filter.component,
+                    "Actions: ${filter.actions.joinToString().ifBlank { "—" }}\\nCategories: ${filter.categories.joinToString().ifBlank { "—" }}\\nSchemes: ${filter.schemes.joinToString().ifBlank { "—" }}\\nHosts: ${filter.hosts.joinToString().ifBlank { "—" }}",
+                    if (filter.autoVerify) KillerAmber else KillerMuted
+                )
+            }
+            manifest.parseWarnings.forEach { warning -> InfoCard("Предупреждение манифеста", warning) }
+        }
         if (report.threatIndicators.isNotEmpty()) {
             report.threatIndicators.forEach { indicator ->
                 FeatureCard(
