@@ -51,7 +51,9 @@ Uses Android PackageManager to inspect a user-selected APK without installing or
 - SHA-256 digest of the APK.
 - SHA-256 fingerprints of signing certificates.
 - If the same package is already installed, compare the selected APK's current signer certificate with the installed package's current signer and flag a mismatch. Key-rotation lineage validation is not yet included; a legitimate signing-key rotation may require manual review.
-The APK is staged in app cache, with a 150 MB input limit, analyzed locally, and deleted afterwards. This is static manifest/metadata triage, not dynamic sandboxing, full code decompilation, malware signature scanning, or proof of signer trust.
+- Bounded DEX string/API-reference scan for sensitive capabilities such as Accessibility, notification listener, device administration, screen capture, dynamic DEX loading, SMS, package installation, VPN, window management, camera and location APIs.
+The DEX scan reads at most 16 DEX files and 64 MB of uncompressed DEX data. API references are capability indicators only; they are not proof that the code path executes or that the app is malicious.
+The APK is staged in app cache, with a 150 MB input limit, analyzed locally, and deleted afterwards. This remains static analysis, not dynamic sandboxing, full code decompilation, malware signature scanning, or proof of signer trust.
 
 ### 4. LINK MIRROR
 Offline URL-structure inspection:
