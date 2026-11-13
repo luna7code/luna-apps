@@ -49,10 +49,15 @@ object ReportEnvelopeCodec {
                 fun field(value: String): String =
                     String(decoder.decode(value), StandardCharsets.UTF_8)
 
+                val previousTag = field(fields[1])
+                val chainTag = field(fields[2]).takeIf { it.isNotBlank() }
+                    ?: error("Missing Forensic Seal HMAC")
+                val report = field(fields[3])
+                require(report.isNotBlank()) { "Missing sealed report payload" }
                 ReportEnvelope(
-                    report = field(fields[3]),
-                    previousTag = field(fields[1]),
-                    chainTag = field(fields[2]).takeIf { it.isNotBlank() },
+                    report = report,
+                    previousTag = previousTag,
+                    chainTag = chainTag,
                     wrapped = true
                 )
             }.getOrElse {
