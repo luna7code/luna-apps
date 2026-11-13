@@ -438,7 +438,7 @@ fun KillerFeaturesScreen(
             FeatureHeader(
                 "08 · APK X-RAY",
                 "Рентген APK до установки",
-                "Выберите APK-файл. PRO SEC прочитает манифест, разрешения, экспортируемые компоненты, debug/backup/cleartext-флаги, SHA-256, отпечатки сертификатов и ограниченный набор DEX API-сигналов. Файл не устанавливается."
+                "Выберите APK-файл. PRO SEC статически прочитает манифест, exported-компоненты, разрешения, min/target SDK, сертификаты и ротацию ключей, DEX API-ссылки, строки и URL. Архив не устанавливается и не запускается."
             )
             Button(
                 onClick = { apkPicker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) },
@@ -693,6 +693,16 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
             report.packageName,
             "Версия: ${report.versionName} (${report.versionCode})\nTarget SDK: ${report.targetSdk} · Min SDK: ${report.minSdk}\nРазмер: ${report.fileSizeBytes / 1024} KB\nЭкспортируемых компонентов: ${report.exportedComponents} · без permission: ${report.exportedWithoutPermission}\nРазрешений в манифесте: ${report.requestedPermissions.size}"
         )
+        if (report.requestedPermissionAssessments.isNotEmpty()) {
+            InfoCard(
+                "Protection levels · Android device registry",
+                report.requestedPermissionAssessments.take(40).joinToString("\n") {
+                    "${it.name}\n${it.protectionLevel} · owner: ${it.ownerPackage ?: "не разрешён"}"
+                } + if (report.requestedPermissionAssessments.size > 40) {
+                    "\nПоказаны первые 40 разрешений."
+                } else ""
+            )
+        }
         InfoCard(
             "Проверка цепочки сертификатов: ${report.signerRotationResult}",
             "${report.signerRotationExplanation}\n" + when (report.installedSignerMatch) {
@@ -744,6 +754,72 @@ private fun ApkReportCard(report: ApkXRayReport, onCopy: (String) -> Unit) {
                     KillerAmber
                 )
             }
+        }
+        InfoCard(
+            "Статические строки и URL",
+            "Просмотрено записей: ${report.stringScanEntries} · данных: ${report.stringScanBytes / 1024} KB" +
+                if (report.stringScanTruncated) "\\nАнализ ограничен лимитами архива." else ""
+        )
+        if (report.extractedUrls.isEmpty()) {
+            InfoCard(
+                "URL-строки не найдены",
+                "В проверенных ограниченных записях не обнаружены HTTP(S)-адреса. Обфускация, динамическая сборка URL и непроверенные данные могут скрыть адреса."
+            )
+        } else {
+            InfoCard("Извлечённые URL (${report.extractedUrls.size})", report.extractedUrls.joinToString("\n"))
+        }
+        if (report.stringFindings.isNotEmpty()) {
+            report.stringFindings.forEach { finding ->
+                FeatureCard(
+                    "СТРОКОВЫЙ ИНДИКАТОР · ${finding.occurrences}",
+                    finding.category,
+                    "Найден токен «${finding.indicator}». Строка может быть неиспользуемой, поэтому это контекстный индикатор, а не доказательство поведения.",
+                    KillerAmber
+                )
+            }
+        }
+        InfoCard(
+            "Архив и native-библиотеки",
+            "Записей ZIP: ${report.nativeLibraries.size} native-библиотек · вложенных APK: ${report.nestedApkEntries.size}" +
+                if (report.archiveTruncated) "\\nАнализ ограничен лимитами." else ""
+        )
+        report.nativeLibraries.forEach { library ->
+            FeatureCard(
+                "NATIVE · ${library.abi}",
+                library.path,
+                "ELF: ${library.machineName} · class ${library.elfClass} · program headers: ${library.programHeaderCount}" +
+                    "\\nGNU stack: ${library.hasExecutableStack?.let { if (it) "EXECUTABLE" else "NX" } ?: "UNKNOWN"}" +
+                    "\\nText relocations: ${library.hasTextRelocations?.let { if (it) "YES" else "NO" } ?: "UNKNOWN"}" +
+                    "\\nDT_NEEDED: ${library.dynamicLibraryNames.joinToString().ifBlank { "не прочитаны" }}" +
+                    "\\nDynamic symbols: ${library.dynamicSymbols.take(12).joinToString().ifBlank { "не прочитаны" }}" +
+                    if (library.warnings.isEmpty()) "\\nСтруктурные предупреждения не обнаружены." else "\\n${library.warnings.joinToString("; ")}",
+                if (library.warnings.isEmpty()) KillerMuted else KillerAmber
+            )
+        }
+        if (report.nestedApkEntries.isNotEmpty()) {
+            InfoCard("Вложенные APK / split-кандидаты", report.nestedApkEntries.joinToString("\\n"))
+        }
+        report.archiveWarnings.forEach { warning ->
+            FeatureCard("ZIP · ПРОВЕРИТЬ", warning, "Структурный индикатор архива. Сам по себе не доказывает вредоносное содержимое.", KillerAmber)
+        }
+        report.binaryManifest?.let { manifest ->
+            InfoCard(
+                "Binary AndroidManifest",
+                "Package: ${manifest.packageName ?: "не прочитан"} · minSdk: ${manifest.minSdk ?: "?"} · targetSdk: ${manifest.targetSdk ?: "?"}" +
+                    "\\nОбъявлено permission: ${manifest.declaredPermissions.size} · intent-filters: ${manifest.intentFilters.size}"
+            )
+            manifest.declaredPermissions.filter { it.second != null }.forEach { (name, level) ->
+                InfoCard("Объявленное permission", "$name\\nprotectionLevel: $level")
+            }
+            manifest.intentFilters.forEach { filter ->
+                FeatureCard(
+                    if (filter.autoVerify) "APP LINK · AUTO VERIFY" else "INTENT FILTER",
+                    filter.component,
+                    "Actions: ${filter.actions.joinToString().ifBlank { "—" }}\\nCategories: ${filter.categories.joinToString().ifBlank { "—" }}\\nSchemes: ${filter.schemes.joinToString().ifBlank { "—" }}\\nHosts: ${filter.hosts.joinToString().ifBlank { "—" }}",
+                    if (filter.autoVerify) KillerAmber else KillerMuted
+                )
+            }
+            manifest.parseWarnings.forEach { warning -> InfoCard("Предупреждение манифеста", warning) }
         }
         if (report.threatIndicators.isNotEmpty()) {
             report.threatIndicators.forEach { indicator ->

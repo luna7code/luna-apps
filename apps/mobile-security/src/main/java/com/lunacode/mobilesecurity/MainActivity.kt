@@ -49,11 +49,14 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.lunacode.mobilesecurity.data.ProSecDatabase
 import com.lunacode.mobilesecurity.data.ScanRecord
+import com.lunacode.mobilesecurity.intelligence.AttackChain
+import com.lunacode.mobilesecurity.intelligence.AttackChainSignalAdapter
 import com.lunacode.mobilesecurity.intelligence.ChangeSentinel
 import com.lunacode.mobilesecurity.intelligence.SecurityPosture
 import com.lunacode.mobilesecurity.intelligence.SecurityPostureReport
 import com.lunacode.mobilesecurity.scanner.AuditFinding
 import com.lunacode.mobilesecurity.monitor.DailyAuditWorker
+import com.lunacode.mobilesecurity.security.TrustedBaselineStore
 import com.lunacode.mobilesecurity.security.LocalEvidenceSeal
 import com.lunacode.mobilesecurity.security.HistoryChainRecord
 import com.lunacode.mobilesecurity.security.HistoryChainVerifier
@@ -96,12 +99,16 @@ private data class ScanReportUi(
     val scannedAt: Long,
     val findings: List<FindingUi>,
     val changes: List<KillerChangeUi>,
+    val attackChains: List<AttackChain>,
     val firstBaseline: Boolean,
     val history: List<KillerHistoryUi>,
     val posture: SecurityPostureReport,
     val integrityStatus: String,
     val scanDurationMs: Long,
-    val appCount: Int
+    val appCount: Int,
+    val trustedBaselineActive: Boolean,
+    val trustedBaselineInvalid: Boolean,
+    val trustedBaselineSavedAt: Long
 ) {
     val highCount get() = findings.count { it.severity == "HIGH" }
     val mediumCount get() = findings.count { it.severity == "MEDIUM" }
@@ -130,7 +137,8 @@ class MainActivity : ComponentActivity() {
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
                     onDailyMonitoringChange = { enabled -> if (!enabled) setDailyMonitoring(false) },
                     onRefresh = { refreshLatest() },
-                    onScan = { enabled -> enqueueScan(enabled) }
+                    onScan = { enabled -> enqueueScan(enabled) },
+                    onSetTrustedBaseline = { saveTrustedBaseline() }
                 )
             }
         }
@@ -281,11 +289,19 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val posture = SecurityPosture.evaluate(postureFindings)
+                    val trustedBaselineState = TrustedBaselineStore.load(applicationContext)
                     val scanMetrics = json.optJSONObject("scanMetrics")
                     val sentinel = ChangeSentinel.read(json)
                     val changes = sentinel.changes.map {
                         KillerChangeUi(it.kind, it.title, it.detail, it.level)
                     }
+                    val attackChains = AttackChainSignalAdapter.detect(
+                        findings = findings.map { finding ->
+                            AuditFinding(finding.id, finding.title, finding.detail, finding.severity, finding.source)
+                        },
+                        changes = sentinel.changes,
+                        observedAtMillis = record.scannedAt
+                    )
                     val history = decoded.map { scan ->
                         KillerHistoryUi(
                             scannedAt = scan.record.scannedAt,
@@ -298,12 +314,16 @@ class MainActivity : ComponentActivity() {
                         scannedAt = record.scannedAt,
                         findings = findings,
                         changes = changes,
+                        attackChains = attackChains,
                         firstBaseline = schema < 2 || sentinel.isFirstBaseline,
                         history = history,
                         posture = posture,
                         integrityStatus = latest.integrityStatus,
                         scanDurationMs = scanMetrics?.optLong("durationMs") ?: 0L,
-                        appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0
+                        appCount = scanMetrics?.optInt("appCount") ?: json.optJSONArray("apps")?.length() ?: 0,
+                    trustedBaselineActive = trustedBaselineState is com.lunacode.mobilesecurity.security.TrustedBaselineRead.Valid,
+                    trustedBaselineInvalid = trustedBaselineState is com.lunacode.mobilesecurity.security.TrustedBaselineRead.Invalid,
+                    trustedBaselineSavedAt = (trustedBaselineState as? com.lunacode.mobilesecurity.security.TrustedBaselineRead.Valid)?.savedAt ?: 0L
                     )
                 }
             }
@@ -322,6 +342,35 @@ class MainActivity : ComponentActivity() {
             }.onFailure {
                 report = null
                 scanMessage = "Не удалось прочитать локальный отчёт. Данные не удалены."
+            }
+        }
+    }
+
+    private fun saveTrustedBaseline() {
+        val expectedScannedAt = report?.takeIf { it.integrityStatus == "VERIFIED" }?.scannedAt
+        if (expectedScannedAt == null) {
+            scanMessage = "Trusted Baseline можно создать только из отчёта с подтверждённой целостностью."
+            return
+        }
+        lifecycleScope.launch {
+            val savedAt = System.currentTimeMillis()
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    val record = ProSecDatabase.get(applicationContext).scanDao().latest()
+                        ?: return@withContext false
+                    if (record.scannedAt != expectedScannedAt) return@withContext false
+                    val envelope = ReportEnvelopeCodec.decode(LocalPayloadCipher().decrypt(record.encryptedPayload))
+                    if (!envelope.wrapped || envelope.chainTag.isNullOrBlank() || envelope.report.isBlank()) return@withContext false
+                    if (!LocalEvidenceSeal.verify(ReportEnvelopeCodec.material(envelope.previousTag, envelope.report), envelope.chainTag)) return@withContext false
+                    TrustedBaselineStore.save(applicationContext, envelope.report)
+                    true
+                }.getOrDefault(false)
+            }
+            if (saved) {
+                report = report?.copy(trustedBaselineActive = true, trustedBaselineInvalid = false, trustedBaselineSavedAt = savedAt)
+                scanMessage = "Проверенный отчёт сохранён как Trusted Baseline. Он будет применён при следующем аудите."
+            } else {
+                scanMessage = "Не удалось сохранить Trusted Baseline: нет проверенного локального отчёта."
             }
         }
     }
@@ -376,7 +425,8 @@ private fun SecurityHome(
     dailyMonitoringEnabled: Boolean,
     onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: (Boolean) -> Unit
+    onScan: (Boolean) -> Unit,
+    onSetTrustedBaseline: () -> Unit
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
@@ -425,7 +475,8 @@ private fun SecurityHome(
                     dailyMonitoringEnabled = dailyMonitoringEnabled,
                     onDailyMonitoringChange = onDailyMonitoringChange,
                     onRefresh = onRefresh,
-                    onScan = onScan
+                    onScan = onScan,
+                    onSetTrustedBaseline = onSetTrustedBaseline
                 )
             } else {
                 KillerFeaturesScreen(
@@ -449,7 +500,8 @@ private fun SecurityOverview(
     dailyMonitoringEnabled: Boolean,
     onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: (Boolean) -> Unit
+    onScan: (Boolean) -> Unit,
+    onSetTrustedBaseline: () -> Unit
 ) {
     var showConsent by remember { mutableStateOf(false) }
     var requestedDailyMonitoring by remember(dailyMonitoringEnabled) {
@@ -563,10 +615,79 @@ private fun SecurityOverview(
             }
         }
         item {
-            report?.let { SecurityPostureCard(it.posture, compact = true) }
+            if (report != null) {
+                Text("INCIDENT RESPONSE CENTER", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.8.sp)
+                SecurityPostureCard(report.posture, compact = true)
+            }
         }
         item {
             report?.let { EvidenceSealCard(it.integrityStatus, compact = true) }
+        }
+        if (report != null) {
+            item {
+                val granted = report.findings.count { it.id.startsWith("granted-permissions-") }
+                val requested = report.findings.count { it.id.startsWith("permissions-") }
+                val special = report.findings.count {
+                    (it.id.startsWith("accessibility-") && it.id != "accessibility-none") ||
+                        (it.id.startsWith("notification-listener-") && it.id != "notification-listener-none") ||
+                        (it.id.startsWith("admin-") && it.id != "admin-none") ||
+                        (it.id.startsWith("input-method-") && it.id != "input-method-none") ||
+                        it.id.startsWith("app-op-")
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ProSecPalette.Border),
+                    colors = CardDefaults.cardColors(containerColor = ProPanel)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("PERMISSION INTELLIGENCE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                        Text("Выданные разрешения: $granted · широкие запросы: $requested · специальные доступы и AppOps: $special", color = ProWhite, fontSize = 13.sp)
+                        Text("Запрошенные разрешения не равны выданным. Специальные доступы показываются отдельно; доступность данных зависит от версии Android и производителя.", color = ProMuted, fontSize = 11.sp)
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ProSecPalette.Border),
+                    colors = CardDefaults.cardColors(containerColor = ProPanel)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("TRUSTED BASELINE", color = ProMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                        Text(
+                            when {
+                                report.trustedBaselineInvalid -> "Пользовательская базовая точка повреждена или не прошла проверку"
+                                report.trustedBaselineActive && report.trustedBaselineSavedAt > report.scannedAt -> "Trusted Baseline сохранена; будет применена при следующем аудите"
+                                report.trustedBaselineActive -> "Сравнение с утверждённой Trusted Baseline активно"
+                                report.firstBaseline -> "Базовая точка ещё не создана"
+                                else -> "Сравнение с предыдущей проверкой; пользовательская база не утверждена"
+                            },
+                            color = if (report.trustedBaselineInvalid) ProAmber else ProWhite,
+                            fontSize = 14.sp
+                        )
+                        Text("Изменений относительно точки сравнения: ${report.changes.size}. Данные хранятся локально и защищены шифрованием и HMAC. Отсутствие изменений не доказывает безопасность.", color = ProMuted, fontSize = 11.sp)
+                        Button(
+                            onClick = onSetTrustedBaseline,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = ProSecPalette.Elevated, contentColor = ProWhite)
+                        ) { Text(if (report.trustedBaselineActive) "ОБНОВИТЬ TRUSTED BASELINE" else "УТВЕРДИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ") }
+                    }
+                }
+            }
+        }
+        if (report != null) {
+            item {
+                Text("ANTI-SPYWARE GUARD · ${report.attackChains.size} СВЯЗАННЫХ ЦЕПОЧЕК", color = ProAmber, fontSize = 11.sp, letterSpacing = 1.5.sp)
+            }
+            if (report.attackChains.isEmpty()) {
+                item {
+                    Text("По доступным сигналам связанные цепочки не выявлены. Это не означает, что устройство полностью безопасно: Android ограничивает видимость части системных данных.", color = ProMuted, fontSize = 11.sp)
+                }
+            } else {
+                items(report.attackChains) { chain -> AttackChainCard(chain) }
+            }
         }
         if (report != null && report.changes.isNotEmpty()) {
             item {
@@ -616,7 +737,7 @@ private fun SecurityOverview(
             AuditModule(
                 "02",
                 "Специальные доступы",
-                "Включённые службы Accessibility и активные администраторы"
+                "Accessibility, Notification Listener, клавиатуры, AppOps и активные администраторы"
             )
         }
         item { AuditModule("03", "Сетевые подключения", "Обнаружение активного VPN-транспорта") }
@@ -664,6 +785,24 @@ private fun Metric(label: String, value: Int, color: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(value.toString(), color = color, fontSize = 23.sp)
         Text(label, color = ProMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+    }
+}
+
+@Composable
+private fun AttackChainCard(chain: AttackChain) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, ProSecPalette.Warning.copy(alpha = 0.45f)),
+        colors = CardDefaults.cardColors(containerColor = ProPanel)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("СВЯЗАННАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · ${chain.severity}", color = ProAmber, fontSize = 10.sp, letterSpacing = 1.2.sp)
+            Text(chain.title, color = ProWhite, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(chain.packageName, color = ProMuted, fontSize = 11.sp)
+            Text(chain.explanation, color = ProMuted, fontSize = 12.sp)
+            Text("Сила сочетания: ${chain.confidenceScore}/100 · качество источников: ${chain.evidenceQualityScore}/100 · событий: ${chain.signals.size}", color = ProWhite, fontSize = 11.sp)
+        }
     }
 }
 

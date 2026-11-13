@@ -104,6 +104,12 @@ data class ExportedComponentExposure(
     val permission: String
 )
 
+data class RequestedPermissionAssessment(
+    val name: String,
+    val protectionLevel: String,
+    val ownerPackage: String?
+)
+
 data class ApkXRayReport(
     val packageName: String,
     val versionName: String,
@@ -118,6 +124,7 @@ data class ApkXRayReport(
     val installedVersionName: String?,
     val installedSignerMatch: Boolean?,
     val requestedPermissions: List<String>,
+    val requestedPermissionAssessments: List<RequestedPermissionAssessment>,
     val exportedComponents: Int,
     val exportedWithoutPermission: Int,
     val exportedComponentDetails: List<ExportedComponentExposure>,
@@ -127,6 +134,16 @@ data class ApkXRayReport(
     val dexScanTruncated: Boolean,
     val dexScanDurationMs: Long,
     val dexLimitReason: String?,
+    val extractedUrls: List<String>,
+    val stringFindings: List<StaticStringFinding>,
+    val stringScanEntries: Int,
+    val stringScanBytes: Long,
+    val stringScanTruncated: Boolean,
+    val nativeLibraries: List<NativeLibraryInfo>,
+    val nestedApkEntries: List<String>,
+    val archiveWarnings: List<String>,
+    val archiveTruncated: Boolean,
+    val binaryManifest: BinaryManifestInspection?,
     val threatIndicators: List<ThreatIndicator>,
     val risks: List<ApkRisk>,
     val fileSizeBytes: Long
@@ -179,6 +196,7 @@ object ApkXRay {
         val app = info.applicationInfo ?: throw IllegalArgumentException("В APK отсутствует ApplicationInfo.")
         val packageName = info.packageName.orEmpty()
         val requested = info.requestedPermissions.orEmpty().toList()
+        val permissionAssessments = resolveRequestedPermissions(pm, requested)
         val signerProfile = readSigningLineage(info)
         val installedInfo = readInstalledPackageInfo(pm, packageName)
         val installedProfile = installedInfo?.let(::readSigningLineage)
@@ -199,14 +217,25 @@ object ApkXRay {
         val exportedWithoutPermission = exportedDetails.count { it.permission.isBlank() }
         val apkDigest = sha256(file)
         val dexScan = runCatching { DexIndicatorScanner.scan(file) }.getOrNull()
-        val threatMatches = ThreatDatabaseStore(context).loadVerified()
-            ?.byPackageName?.get(packageName).orEmpty()
-            .filter { indicator ->
-                (indicator.apkSha256 == null || indicator.apkSha256.equals(apkDigest, ignoreCase = true)) &&
-                    (indicator.signerSha256 == null || signers.any {
-                        it.equals(indicator.signerSha256, ignoreCase = true)
-                    })
+        val stringScan = runCatching { StaticStringIndicatorScanner.scan(file) }.getOrNull()
+        val archiveScan = runCatching { ApkArchiveInspector.inspect(file) }.getOrNull()
+        val binaryManifest = runCatching {
+            java.util.zip.ZipFile(file).use { zip ->
+                val entry = zip.getEntry("AndroidManifest.xml") ?: return@use null
+                if (entry.size !in 1..(2L * 1024L * 1024L)) return@use null
+                val bytes = zip.getInputStream(entry).use {
+                    StaticStringIndicatorScanner.readBounded(it, 2L * 1024L * 1024L)
+                }
+                AndroidBinaryManifestInspector.inspect(bytes)
             }
+        }.getOrNull()
+        val feedIndicators = ThreatDatabaseStore(context).loadVerified()
+            ?.byPackageName?.get(packageName).orEmpty()
+        val threatMatches = ThreatIndicatorMatcher.match(
+            packageName = packageName,
+            signerDigests = signers.toSet(),
+            indicators = feedIndicators
+        ) { apkDigest }
 
         val risks = mutableListOf<ApkRisk>()
         if (app.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
@@ -234,6 +263,50 @@ object ApkXRay {
         val sensitivePermissions = requested.filter { it in SENSITIVE_PERMISSIONS }
         if (sensitivePermissions.isNotEmpty()) {
             risks += ApkRisk("Чувствительные разрешения: ${sensitivePermissions.size}", sensitivePermissions.joinToString("\n"), "LOW")
+        }
+        if (stringScan?.urls.orEmpty().isNotEmpty()) {
+            risks += ApkRisk(
+                "URL-адреса найдены в статических строках: ${stringScan?.urls?.size ?: 0}",
+                "Найденные адреса — только извлечённые строки из APK. Это не подтверждает сетевые обращения; список приведён ниже для ручной проверки.",
+                "INFO"
+            )
+        }
+        stringScan?.findings.orEmpty().forEach { finding ->
+            risks += ApkRisk(
+                "Строковый индикатор: ${finding.category}",
+                "Токен «${finding.indicator}» найден ${finding.occurrences} раз(а) в ограниченно просмотренных строках. Наличие строки не доказывает вызов API или вредоносное действие.",
+                "INFO"
+            )
+        }
+        if (stringScan?.truncated == true) {
+            risks += ApkRisk(
+                "Строковый анализ ограничен",
+                "Достигнут лимит архива или объёма данных. Отсутствие индикаторов в непроверенной части не может быть подтверждено.",
+                "INFO"
+            )
+        }
+        archiveScan?.nativeLibraries.orEmpty().forEach { library ->
+            if (library.warnings.isNotEmpty()) risks += ApkRisk(
+                "Native-библиотека: ${library.path}",
+                "ABI: ${library.abi}; ELF: ${library.machineName}. ${library.warnings.joinToString("; ")}. Строковые совпадения не доказывают выполнение соответствующего кода.",
+                "INFO"
+            )
+        }
+        archiveScan?.suspiciousArchiveEntries.orEmpty().forEach { warning ->
+            risks += ApkRisk("Подозрительная структура ZIP", warning, "MEDIUM")
+        }
+        binaryManifest?.intentFilters.orEmpty().filter { it.autoVerify }.forEach { filter ->
+            risks += ApkRisk(
+                "Android App Link · autoVerify",
+                "Компонент ${filter.component}; host: ${filter.hosts.joinToString().ifBlank { "не указан" }}; schemes: ${filter.schemes.joinToString()}. Это декларация в манифесте, не доказательство успешной верификации домена Android.",
+                "INFO"
+            )
+        }
+        if (binaryManifest?.parseWarnings.orEmpty().isNotEmpty()) {
+            risks += ApkRisk("Binary manifest прочитан частично", binaryManifest!!.parseWarnings.joinToString("; "), "INFO")
+        }
+        if (archiveScan?.truncated == true) {
+            risks += ApkRisk("Архивный анализ ограничен", "Достигнут лимит числа записей, распакованного размера или размера native-библиотек. Непроверенные части неизвестны.", "INFO")
         }
         if (signers.isEmpty()) {
             risks += ApkRisk("Сертификат подписи не прочитан", "Не удалось извлечь сертификат APK. Сравнение издателя недоступно.", "MEDIUM")
@@ -277,6 +350,7 @@ object ApkXRay {
             installedVersionName = installedInfo?.versionName,
             installedSignerMatch = signerMatch,
             requestedPermissions = requested,
+            requestedPermissionAssessments = permissionAssessments,
             exportedComponents = exported,
             exportedWithoutPermission = exportedWithoutPermission,
             exportedComponentDetails = exportedDetails.take(30),
@@ -286,10 +360,65 @@ object ApkXRay {
             dexScanTruncated = dexScan?.truncated ?: true,
             dexScanDurationMs = dexScan?.durationMs ?: 0L,
             dexLimitReason = dexScan?.limitReason,
+            extractedUrls = stringScan?.urls.orEmpty(),
+            stringFindings = stringScan?.findings.orEmpty(),
+            stringScanEntries = stringScan?.entriesScanned ?: 0,
+            stringScanBytes = stringScan?.bytesScanned ?: 0L,
+            stringScanTruncated = stringScan?.truncated ?: true,
+            nativeLibraries = archiveScan?.nativeLibraries.orEmpty(),
+            nestedApkEntries = archiveScan?.nestedApkEntries.orEmpty(),
+            archiveWarnings = archiveScan?.suspiciousArchiveEntries.orEmpty(),
+            archiveTruncated = archiveScan?.truncated ?: true,
+            binaryManifest = binaryManifest,
             threatIndicators = threatMatches,
             risks = risks,
             fileSizeBytes = file.length()
         )
+    }
+
+    private fun resolveRequestedPermissions(
+        pm: PackageManager,
+        permissions: List<String>
+    ): List<RequestedPermissionAssessment> = permissions.distinct().take(200).map { name ->
+        val info = runCatching {
+            if (Build.VERSION.SDK_INT >= 33) {
+                @Suppress("DEPRECATION")
+                pm.getPermissionInfo(name, 0)
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPermissionInfo(name, 0)
+            }
+        }.getOrNull()
+        if (info == null) {
+            RequestedPermissionAssessment(name, "UNRESOLVED · отсутствует в реестре устройства", null)
+        } else {
+            val base = when (info.protectionLevel and 0x0f) {
+                0 -> "NORMAL"
+                1 -> "DANGEROUS"
+                2 -> "SIGNATURE"
+                3 -> "SIGNATURE_OR_SYSTEM (legacy)"
+                else -> "UNKNOWN"
+            }
+            val flags = mutableListOf<String>()
+            val flagNames = listOf(
+                0x10 to "PRIVILEGED", 0x20 to "DEVELOPMENT", 0x40 to "APPOP",
+                0x80 to "PRE23", 0x100 to "INSTALLER", 0x200 to "VERIFIER",
+                0x400 to "PREINSTALLED", 0x800 to "SETUP",
+                0x1000 to "INSTANT", 0x2000 to "RUNTIME_ONLY",
+                0x4000 to "OEM", 0x8000 to "VENDOR_PRIVILEGED",
+                0x10000 to "TEXT_CLASSIFIER", 0x20000 to "CONFIGURATOR",
+                0x40000 to "INCIDENT_REPORT_APPROVER", 0x80000 to "APPROVER",
+                0x100000 to "ROLE", 0x800000 to "KNOWN_SIGNER"
+            )
+            flagNames.forEach { (mask, label) ->
+                if (info.protectionLevel and mask != 0) flags += label
+            }
+            RequestedPermissionAssessment(
+                name,
+                if (flags.isEmpty()) base else "$base | ${flags.joinToString()}",
+                info.packageName
+            )
+        }
     }
 
     @Suppress("DEPRECATION")

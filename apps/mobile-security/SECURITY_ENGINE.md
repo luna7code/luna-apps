@@ -33,6 +33,14 @@ The scanner uses Android PackageManager and system settings exposed to ordinary 
 
 Severity labels and the Exposure Index describe observed attack-surface indicators. They are not a malware probability. Requested permissions, declared services, API references and known remote-support packages may be legitimate and require context.
 
+## Change Sentinel signer-lineage semantics
+
+- New snapshots preserve the current signer set, Android's proof-of-rotation history and the multi-signer flag when the platform exposes them.
+- Android API 28+ single-signer history is stored in the platform-provided original-to-current rotation order. Multi-signer packages are represented as an exact signer set and are never treated as a rotatable single-signer chain.
+- A verified forward rotation is informational. A historical signer, unrelated signer or multi-signer set mismatch remains a high-priority review item.
+- Historic snapshots without the multi-signer field remain unknown for changed signer sets; PRO SEC does not infer a valid rotation from missing history.
+- Below API 28, only current legacy signatures are available and rotation remains unverified.
+
 ## APK X-RAY
 
 APK X-RAY analyzes a user-selected APK locally without installing or executing it.
@@ -61,7 +69,7 @@ PRO SEC supports a manually imported, signed offline indicator feed. No network 
 - Feed signature is SHA256withRSA over exact UTF-8/LF-framed content. Metadata, package names, optional APK/signer SHA-256 digests, severity, confidence, title and detail are strictly validated.
 - Feed size is capped at 4 MiB and indicator count at 20,000. Duplicate IDs, invalid hashes, malformed fields, unknown keys, altered content and older versions are rejected.
 - Imported feed data is encrypted locally with AES-GCM and written using AtomicFile. The saved version counter blocks ordinary import rollback.
-- Matching can require package ID only, or the stronger APK/signer hashes. APK files are hashed only for packages whose feed entries require an APK digest; the digest is computed once per package scan.
+- Matching can require package ID only, or the stronger APK/signer hashes. Matching filters package and signer first, then requests at most one APK SHA-256 calculation per package when a surviving indicator requires it. APK X-RAY reuses its already calculated digest.
 - A match is an indicator requiring review, not proof of malicious execution.
 
 No public-key trust root or threat feed is bundled by default. The feature remains inactive until the user pins the actual publisher key and imports a feed signed by that key. Full rollback protection against restoration of an older complete application-data image or device/Keystore compromise is not possible for an ordinary app.
@@ -70,7 +78,7 @@ The exact feed format is documented in `THREAT_DATABASE_FORMAT.md`.
 
 ## Change Sentinel and history integrity
 
-- Change Sentinel compares package install/removal, version/update metadata, signer fingerprints, permission-state digest and newly appearing audit findings.
+- Change Sentinel compares package install/removal, version/update metadata, signer lineage (where Android exposes it), permission-state digest and newly appearing audit findings.
 - A valid empty package inventory is compared normally; a missing inventory field is treated as unavailable data, not as an empty list.
 - Reports are encrypted with AES-GCM using an Android Keystore key. The payload codec uses a 12-byte nonce and a 128-bit authentication tag.
 - Each current report is separately sealed with HMAC-SHA256 using another Android Keystore key and references the previous tag.
@@ -124,3 +132,58 @@ Still required on the physical Pura 70:
 - local database corruption/recovery scenarios and history-chain behavior after key loss.
 
 No dynamic sandbox, cloud reputation service, bundled malware signatures, root inspection, or guarantee against sophisticated spyware is currently implemented.
+
+
+## APK X-RAY: bounded static string inspection
+
+The APK X-RAY pipeline reads Android package metadata through PackageManager and inspects archive entries as inert bytes. It does not install, load, or execute the selected APK. The manifest-derived report includes requested permissions, min/target SDK, exported activities/services/receivers/providers, component permission declarations, current signer fingerprints, Android-provided signer history/proof-of-rotation where available, and a comparison against an installed package of the same package name.
+
+A bounded string pass now inspects selected DEX and text-like archive entries for HTTP(S) URL literals and capability-related tokens (shell/process APIs, dynamic DEX loading, Accessibility, notification listeners, SMS, MediaProjection, overlays, package installation, device identifiers, and common networking APIs). Limits are 160 archive entries, 2 MiB per entry, 32 MiB total, 80 distinct URLs, and 40 grouped findings. The scan reports truncation rather than treating uninspected data as clean.
+
+Interpretation is deliberately conservative:
+- Manifest permissions are requested capabilities, not proof of grant or use.
+- Exported components are attack-surface candidates; actual reachability and authorization depend on intent filters, permissions, platform version, and runtime checks.
+- A certificate fingerprint identifies signing material, not publisher reputation. Rotation is trusted only when Android supplies a verified lineage.
+- URLs and API-like strings may be dead code, libraries, documentation, or decoys. They are contextual indicators, not evidence of a network connection or malicious action.
+- Obfuscation, encryption, native code, dynamic URL construction, split APKs, and archive regions beyond limits can hide behavior. Static analysis cannot prove an APK safe.
+
+All inspection remains local. The app does not add INTERNET permission, telemetry, or cloud submission for APK analysis.
+
+## APK X-RAY: native, split and binary-manifest status
+
+The ZIP reader remains inert: it does not extract APK entries to disk, install packages, load shared objects, or execute native code. It caps the archive at 1,200 entries, 256 MiB of declared uncompressed data, 80 native libraries and 16 MiB per native library. It reports unsafe paths, canonical duplicate paths, high compression ratios and bounded-scan truncation. Size accumulation uses subtraction-based limit checks to avoid signed addition overflow.
+
+### ELF metadata currently parsed
+
+For ELF32 and ELF64, little- and big-endian inputs, the bounded parser reads the ELF header and program-header table (up to 256 entries), maps PT_LOAD virtual addresses to file offsets, and inspects PT_GNU_STACK and PT_DYNAMIC. It extracts bounded DT_NEEDED names, dynamic symbols (up to 80 reported names; symbol-count estimation is used when DT_HASH is unavailable), and text-relocation indicators from DT_TEXTREL / DF_TEXTREL. The report UI shows program-header count, executable-stack state (NX / EXECUTABLE / UNKNOWN), text-relocation state, dependencies and selected dynamic symbols.
+
+Important interpretation limits:
+- Missing PT_GNU_STACK is UNKNOWN, not proof of NX.
+- Dynamic-symbol coverage may be incomplete when GNU hash is used without DT_HASH; the report emits an explicit warning when it estimates symbol count.
+- Text relocation state reflects dynamic tags only. A full relocation-section audit, GNU property notes, symbol version tables and GNU-hash traversal are not implemented yet.
+- String matches and exported symbols are metadata indicators, not proof that code is reachable or executed.
+
+### Split APK status
+
+The archive scanner detects nested .apk entries as split candidates. It does not yet recursively parse every split manifest, prove package/version consistency, inspect split dependencies, or compare signing certificates / signing lineage across base and split APKs. Treat nested APK results as candidates only; split lineage verification remains an open implementation item. The Android package parser is still the source for the selected outer APK's package metadata and signing information.
+
+### Manifest and permissions
+
+The binary AndroidManifest reader extracts package and SDK metadata, custom permission declarations, and common intent-filter action/category/data/autoVerify attributes. Chunk-bound arithmetic now uses Long checks before offset advancement, and the string pool is capped at 20,000 entries. Malformed input produces warnings rather than a clean result.
+
+For requested permissions, APK X-RAY now resolves protectionLevel against the current device's PackageManager permission registry and displays the base class (NORMAL, DANGEROUS, SIGNATURE, legacy SIGNATURE_OR_SYSTEM) plus recognized flags and permission owner package. Permissions absent from the current device registry are explicitly UNRESOLVED; the app does not guess their protection level. Custom <permission> declarations are separately parsed from the candidate manifest.
+
+Intent-filter parsing remains best-effort. It is not a full AAPT2/apkanalyzer resource decode; resource references, all namespace/type encodings, and every Android-version-specific manifest attribute are not guaranteed. App Link autoVerify is only a manifest declaration, not evidence that Android verified the domain.
+
+### Regression corpus and remaining work
+
+JVM tests now include deterministic malformed-ELF byte generation, malformed Binary XML property cases, ZIP-bomb compression-ratio samples, canonical duplicate paths, unsafe paths and corrupt ZIP input. These are deterministic regression/property corpora, not a coverage-guided fuzzing campaign. A future fuzz target should run in a separate host-side harness with time/memory limits and corpus minimization.
+
+Still required for the requested full APK X-RAY scope:
+- split APK package/version/certificate/lineage reconciliation;
+- GNU-hash-based dynamic-symbol enumeration and full relocation-table analysis;
+- Android API-level-specific permission protection-level fixtures, including unresolved and custom permission cases;
+- broader Binary XML corpus from real APKs and API 26–36 manifests;
+- full archive streaming/decompression accounting for every entry, not only entries consumed by specialized scanners.
+
+All APK analysis remains local. No INTERNET permission, telemetry, account, cloud service, APK installation, or APK/native-code execution is introduced.

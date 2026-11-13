@@ -75,6 +75,11 @@ fun SecurityPostureCard(
                 color = PostureMuted,
                 fontSize = 11.sp
             )
+            Text(
+                "Действие считается проверенным только после повторного аудита. Открытие настроек само по себе не означает, что доступ был отключён.",
+                color = PostureMuted,
+                fontSize = 10.sp
+            )
             if (report.recommendations.isNotEmpty()) {
                 Text("ПРИОРИТЕТНЫЕ ДЕЙСТВИЯ", color = PostureWhite, fontSize = 10.sp, letterSpacing = 1.5.sp)
                 report.recommendations.take(if (compact) 2 else 5).forEach { item ->
@@ -90,13 +95,18 @@ fun SecurityPostureCard(
                         Text(item.detail, color = PostureMuted, fontSize = 11.sp)
                         Button(
                             onClick = {
-                                val intent = if (item.packageName != null) {
-                                    Intent(
-                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.fromParts("package", item.packageName, null)
-                                    )
-                                } else {
-                                    Intent(Settings.ACTION_SECURITY_SETTINGS)
+                                val packageUri = item.packageName?.let { Uri.fromParts("package", it, null) }
+                                val intent = when (item.settingsAction) {
+                                    "overlay" -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, packageUri)
+                                    "usage" -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                                    "write-settings" -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, packageUri)
+                                    "install-packages" -> Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri)
+                                    "manage-storage" -> if (android.os.Build.VERSION.SDK_INT >= 30) {
+                                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri)
+                                    } else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+                                    else -> if (packageUri != null) {
+                                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+                                    } else Intent(Settings.ACTION_SECURITY_SETTINGS)
                                 }
                                 runCatching {
                                     context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

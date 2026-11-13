@@ -1,5 +1,6 @@
 package com.lunacode.mobilesecurity.scanner
 
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.pm.PackageInfo
@@ -10,6 +11,8 @@ import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import com.lunacode.mobilesecurity.intelligence.DeviceIntegrityInspector
+import com.lunacode.mobilesecurity.intelligence.InputTrustInspector
+import com.lunacode.mobilesecurity.intelligence.ThreatIndicatorMatcher
 import com.lunacode.mobilesecurity.intelligence.VerifiedThreatDatabase
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,12 +27,19 @@ class DeviceAuditScanner(
     private var lastAppCount: Int = 0
     private var lastDurationMs: Long = 0L
 
+    private data class SigningProfile(
+        val currentSigners: List<String>,
+        val history: List<String>,
+        val multipleSigners: Boolean?
+    )
+
     fun scan(): List<AuditFinding> {
         val startedAt = SystemClock.elapsedRealtime()
         val findings = mutableListOf<AuditFinding>()
         scanInstalledApps(findings)
         scanAccessibility(findings)
         scanNotificationListeners(findings)
+        scanInputMethods(findings)
         scanDeviceAdmins(findings)
         scanVpn(findings)
         scanDeviceIntegrity(findings)
@@ -74,7 +84,9 @@ class DeviceAuditScanner(
             val appInfo = info.applicationInfo ?: return@forEach
             val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
             val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
-            val signerDigests = signerFingerprints(info)
+            scanPackageAppOps(packageName, appInfo.uid, label, systemApp, findings)
+            val signingProfile = signingProfile(info)
+            val signerDigests = signingProfile.currentSigners
             val permissionNames = info.requestedPermissions.orEmpty()
             val permissionState = permissionNames.mapIndexed { index, permission ->
                 val granted = (info.requestedPermissionsFlags?.getOrNull(index)
@@ -96,6 +108,8 @@ class DeviceAuditScanner(
                 put("label", label)
                 put("version", "${info.versionName.orEmpty()}:${versionCode(info)}")
                 put("signerSha256", signerDigests.sorted().joinToString(","))
+                put("signerHistorySha256", signingProfile.history.joinToString(","))
+                signingProfile.multipleSigners?.let { put("multipleSigners", it) }
                 put("permissionsSha256", permissionDigest)
                 put("installerPackage", installer)
                 put("lastUpdateTime", info.lastUpdateTime)
@@ -161,23 +175,21 @@ class DeviceAuditScanner(
             }
 
             val packageIndicators = threatDatabase?.byPackageName?.get(packageName).orEmpty()
-            val apkHashForIndicators = if (packageIndicators.any { it.apkSha256 != null }) {
+            val matchedIndicators = ThreatIndicatorMatcher.match(
+                packageName = packageName,
+                signerDigests = signerDigests.toSet(),
+                indicators = packageIndicators
+            ) {
                 runCatching { sha256(File(appInfo.sourceDir)) }.getOrNull()
-            } else null
-            packageIndicators.forEach { indicator ->
-                val signerMatches = indicator.signerSha256 == null ||
-                    signerDigests.any { it.equals(indicator.signerSha256, ignoreCase = true) }
-                val apkMatches = indicator.apkSha256 == null ||
-                    apkHashForIndicators?.equals(indicator.apkSha256, ignoreCase = true) == true
-                if (signerMatches && apkMatches) {
-                    findings += AuditFinding(
-                        id = "offline-threat-${indicator.id}",
-                        title = indicator.title,
-                        detail = "${indicator.detail}\nСовпали признаки подписанной офлайн-базы: пакет $packageName; confidence ${indicator.confidence}/100. Это совпадение индикатора, а не доказательство исполнения вредоносного кода.",
-                        severity = indicator.severity,
-                        source = "OfflineThreatDatabase:${indicator.id}"
-                    )
-                }
+            }
+            matchedIndicators.forEach { indicator ->
+                findings += AuditFinding(
+                    id = "offline-threat-${indicator.id}",
+                    title = indicator.title,
+                    detail = "${indicator.detail}\nСовпали признаки подписанной офлайн-базы: пакет $packageName; confidence ${indicator.confidence}/100. Это совпадение индикатора, а не доказательство исполнения вредоносного кода.",
+                    severity = indicator.severity,
+                    source = "OfflineThreatDatabase:${indicator.id}"
+                )
             }
         }
 
@@ -212,13 +224,34 @@ class DeviceAuditScanner(
         if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     @Suppress("DEPRECATION")
-    private fun signerFingerprints(info: PackageInfo): List<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= 28) {
-            info.signingInfo?.apkContentsSigners?.toList().orEmpty()
-        } else {
-            info.signatures?.toList().orEmpty()
+    private fun signingProfile(info: PackageInfo): SigningProfile {
+        if (Build.VERSION.SDK_INT >= 28) {
+            val signingInfo = info.signingInfo
+                ?: return SigningProfile(emptyList(), emptyList(), null)
+            if (signingInfo.hasMultipleSigners()) {
+                val current = signingInfo.apkContentsSigners.orEmpty()
+                    .map { sha256(it.toByteArray()) }
+                    .sorted()
+                return SigningProfile(current, current, true)
+            }
+            val history = signingInfo.signingCertificateHistory.orEmpty()
+                .map { sha256(it.toByteArray()) }
+            if (history.isNotEmpty()) {
+                return SigningProfile(
+                    currentSigners = listOf(history.last()),
+                    history = history,
+                    multipleSigners = false
+                )
+            }
+            val fallback = signingInfo.apkContentsSigners.orEmpty()
+                .map { sha256(it.toByteArray()) }
+                .sorted()
+            return SigningProfile(fallback, fallback, false)
         }
-        return signatures.map { sha256(it.toByteArray()) }
+        val legacy = info.signatures.orEmpty()
+            .map { sha256(it.toByteArray()) }
+            .sorted()
+        return SigningProfile(legacy, legacy, null)
     }
 
     private fun sha256(bytes: ByteArray): String =
@@ -235,6 +268,18 @@ class DeviceAuditScanner(
             }
         }
         return digest.digest().joinToString("") { "%02X".format(it) }
+    }
+
+    private fun scanPackageAppOps(packageName: String, uid: Int, label: String, systemApp: Boolean, findings: MutableList<AuditFinding>) {
+        val manager = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return
+        AppOpsAuditDefinitions.forSdk(Build.VERSION.SDK_INT).forEach { definition ->
+            // Read-only query; noteOp/startOp would mutate the operation history.
+            val mode = runCatching { manager.checkOpNoThrow(definition.operation, uid, packageName) }.getOrNull()
+                ?: return@forEach
+            AppOpsFindingPolicy.toFinding(AppOpsEvidence(
+                packageName, label, definition.key, definition.label, mode, systemApp, definition.severity
+            ))?.let(findings::add)
+        }
     }
 
     private fun scanAccessibility(findings: MutableList<AuditFinding>) {
@@ -282,6 +327,29 @@ class DeviceAuditScanner(
             "Android не сообщил включённых сторонних Notification Listener.",
             "INFO", "Settings.Secure"
         )
+    }
+
+    private fun scanInputMethods(findings: MutableList<AuditFinding>) {
+        val report = InputTrustInspector.inspect(context)
+        if (report.methods.isEmpty()) {
+            findings += AuditFinding(
+                "input-method-none",
+                "Включённые сторонние способы ввода не обнаружены",
+                "Android не сообщил включённых способов ввода для проверки.",
+                "INFO",
+                "InputMethodManager"
+            )
+            return
+        }
+        report.methods.forEach { method ->
+            findings += AuditFinding(
+                id = "input-method-${method.packageName}",
+                title = if (method.active) "Активная клавиатура: ${method.label}" else "Включённая клавиатура: ${method.label}",
+                detail = "Пакет ${method.packageName} зарегистрирован как включённый способ ввода. ${if (method.active) "Сейчас он выбран активным." else "Сейчас он не выбран активным."} ${if (method.systemApp) "Android отмечает приложение как системное." else "Проверьте издателя и оставляйте способ ввода включённым только при доверии к нему."}",
+                severity = if (method.systemApp) "INFO" else "MEDIUM",
+                source = method.id
+            )
+        }
     }
 
     private fun scanDeviceIntegrity(findings: MutableList<AuditFinding>) {

@@ -36,6 +36,34 @@ class SecurityPostureTest {
     }
 
     @Test
+    fun mapsAppOpsFindingsToSpecificSettingsRemediation() {
+        val report = SecurityPosture.evaluate(
+            listOf(AuditFinding(
+                "app-op-overlay-com.example.overlay",
+                "Overlay allowed",
+                "Operation allowed",
+                "MEDIUM",
+                "com.example.overlay"
+            ))
+        )
+        assertEquals("overlay", report.recommendations.single().settingsAction)
+        assertEquals("com.example.overlay", report.recommendations.single().packageName)
+    }
+
+    @Test
+    fun mapsCameraMicrophoneAndBackgroundLocationToPackageSettings() {
+        val findings = listOf(
+            AuditFinding("app-op-camera-com.example.recorder", "Camera", "Allowed", "MEDIUM", "com.example.recorder"),
+            AuditFinding("app-op-record-audio-com.example.recorder", "Microphone", "Allowed", "MEDIUM", "com.example.recorder"),
+            AuditFinding("app-op-background-location-com.example.tracker", "Background location", "Allowed", "MEDIUM", "com.example.tracker")
+        )
+        val recommendations = SecurityPosture.evaluate(findings).recommendations
+        assertTrue(recommendations.any { it.title == "Проверить доступ к камере" && it.packageName == "com.example.recorder" })
+        assertTrue(recommendations.any { it.title == "Проверить доступ к микрофону" && it.packageName == "com.example.recorder" })
+        assertTrue(recommendations.any { it.title == "Проверить геолокацию в фоне" && it.packageName == "com.example.tracker" })
+    }
+
+    @Test
     fun prioritizesActionableRemediation() {
         val report = SecurityPosture.evaluate(
             listOf(

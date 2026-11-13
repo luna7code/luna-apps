@@ -29,4 +29,10 @@ class SigningLineageTest {
             SigningLineageComparator.compare(installed, SigningLineage(setOf("A"), listOf("A"), false))
         )
     }
+
+    @Test fun unknownLegacyMultiSignerStateCannotProveRotation() {
+        val installed = SigningLineage(setOf("A"), listOf("A"), null)
+        val candidate = SigningLineage(setOf("B"), listOf("A", "B"), false)
+        assertEquals(SigningLineageResult.UNKNOWN, SigningLineageComparator.compare(installed, candidate))
+    }
 }

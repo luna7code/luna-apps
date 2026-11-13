@@ -29,3 +29,43 @@
 - APK X-RAY test corpus, including malformed and multi-signer APK files.
 
 This is a private-distribution development build. Do not treat it as a stable release until CI passes and the release variant is signed with the persistent private release key.
+
+
+## Development update — 2026-11-13
+
+- Change Sentinel distinguishes Android-verified forward certificate rotation from an unrelated signer replacement and a historical signer.
+- Historic reports without signer-lineage metadata remain explicitly unverified when signer identity changes.
+- Offline threat-feed matching filters by package and signer before hashing; APK SHA-256 is computed at most once per package only when required by a surviving indicator.
+- This development phase is validated through GitHub Actions before it is eligible for the main branch. Physical Huawei Pura 70 testing and private release signing remain separate gates.
+
+
+## APK X-RAY expansion (development branch)
+
+- Added bounded offline extraction of HTTP(S) URL literals and capability-related strings from DEX and selected text-like APK entries.
+- Added grouped indicators for shell/process execution, dynamic code loading, Accessibility, notification access, SMS, screen capture, overlays, package installation, device identifiers, and networking APIs.
+- Added explicit scan limits and truncation reporting; findings are labeled as context indicators, not proof of behavior.
+- Expanded the APK X-RAY screen with extracted URLs and string findings.
+- Added JVM tests for URL extraction, indicator grouping, ignored archive entries, and bounded reads. CI validation is pending for the final branch head.
+- No APK installation or execution. No INTERNET permission, telemetry, or cloud upload added.
+
+## APK X-RAY expansion
+
+- Added bounded ZIP inventory and ELF header inspection for native .so entries.
+- Added detection of nested APK/split candidates, unsafe archive paths, high compression ratios, and truncated scans.
+- Added best-effort binary AndroidManifest parsing for package/SDK values, declared custom permission protection levels, intent filters, and App Link autoVerify declarations.
+- Added UI sections for native ABI/ELF information, archive warnings, manifest permissions and intent filters.
+- Added tests for ELF architecture, invalid ELF data, nested APK detection, malformed ZIP files, and malformed binary manifests.
+- Static-only: no extraction to persistent storage, installation, execution, INTERNET permission, telemetry, or cloud upload.
+
+## PRO SEC development update — APK X-RAY hardening
+
+- Added bounded ELF32/ELF64 program-header parsing, PT_GNU_STACK executable-stack state, PT_DYNAMIC / DT_NEEDED extraction, dynamic symbol sampling, and DT_TEXTREL / DF_TEXTREL indicators.
+- APK reports now display NX / executable / unknown stack state, text relocation state, dependencies and sampled dynamic symbols.
+- Hardened ZIP path accounting with canonical duplicate-path detection and overflow-safe declared-size limits.
+- Hardened Binary XML chunk offset arithmetic and bounded string-pool entries.
+- Added Android PackageManager resolution of requested permission protection levels, including explicit UNRESOLVED state when the current device cannot resolve a permission.
+- Added deterministic malformed ELF and Binary XML property corpora plus ZIP-bomb and duplicate-path regression cases.
+- Split APK entries remain candidate detections only; package/version/signing-lineage reconciliation across all splits is not complete.
+- Full GNU-hash symbol traversal, relocation-table analysis and coverage-guided fuzzing remain future work.
+- Static-only: no installation, native-code execution, INTERNET permission, telemetry or cloud upload.
+- CI and device verification are pending for this update. Do not treat this work as a release.
