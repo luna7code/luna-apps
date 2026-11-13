@@ -49,7 +49,7 @@ object ApkArchiveInspector {
                 val entry = entries.nextElement()
                 count++
                 if (count > MAX_ENTRIES) { truncated = true; break }
-                val normalized = entry.name.replace('\\\\', '/')
+                val normalized = entry.name.replace('\\', '/')
                 if (normalized.startsWith("/") || normalized.split('/').any { it == ".." } ||
                     normalized.contains("\u0000")
                 ) suspicious += "Unsafe archive path: ${entry.name.take(180)}"
