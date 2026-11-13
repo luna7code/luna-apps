@@ -29,6 +29,11 @@ class AesGcmPayloadCodecTest {
         assertThrows(AEADBadTagException::class.java) { AesGcmPayloadCodec.decrypt(tampered, key) }
     }
 
+    @Test fun roundTripsEmptyPayload() {
+        val key = key()
+        assertEquals("", AesGcmPayloadCodec.decrypt(AesGcmPayloadCodec.encrypt("", key), key))
+    }
+
     @Test fun rejectsTruncatedPayload() {
         assertThrows(IllegalArgumentException::class.java) { AesGcmPayloadCodec.decrypt("AQID", key()) }
     }

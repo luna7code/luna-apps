@@ -24,7 +24,7 @@ object AesGcmPayloadCodec {
     fun decrypt(encoded: String, key: SecretKey): String {
         val payload = try { Base64.getDecoder().decode(encoded) }
         catch (_: IllegalArgumentException) { throw IllegalArgumentException("Зашифрованная запись не является корректным Base64.") }
-        require(payload.size > IV_BYTES + TAG_BYTES) { "Зашифрованная запись повреждена или обрезана." }
+        require(payload.size >= IV_BYTES + TAG_BYTES) { "Зашифрованная запись повреждена или обрезана." }
         val iv = payload.copyOfRange(0, IV_BYTES)
         val ciphertext = payload.copyOfRange(IV_BYTES, payload.size)
         val cipher = Cipher.getInstance(TRANSFORMATION)

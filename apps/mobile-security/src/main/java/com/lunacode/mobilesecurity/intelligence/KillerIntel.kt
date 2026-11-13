@@ -352,7 +352,7 @@ object ApkXRay {
             result += ExportedComponentExposure("Receiver", it.name.orEmpty(), it.permission.orEmpty())
         }
         info.providers.orEmpty().filter { it.exported }.forEach {
-            val permissions = listOfNotNull(it.permission, it.readPermission, it.writePermission)
+            val permissions = listOfNotNull(it.readPermission, it.writePermission)
                 .filter { value -> value.isNotBlank() }.distinct().joinToString(", ")
             result += ExportedComponentExposure("Provider", it.name.orEmpty(), permissions)
         }
