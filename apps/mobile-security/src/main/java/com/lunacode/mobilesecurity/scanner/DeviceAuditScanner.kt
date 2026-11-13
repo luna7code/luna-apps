@@ -1,5 +1,6 @@
 package com.lunacode.mobilesecurity.scanner
 
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.pm.PackageInfo
@@ -83,6 +84,7 @@ class DeviceAuditScanner(
             val appInfo = info.applicationInfo ?: return@forEach
             val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
             val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+            scanPackageAppOps(packageName, appInfo.uid, label, systemApp, findings)
             val signingProfile = signingProfile(info)
             val signerDigests = signingProfile.currentSigners
             val permissionNames = info.requestedPermissions.orEmpty()
@@ -266,6 +268,18 @@ class DeviceAuditScanner(
             }
         }
         return digest.digest().joinToString("") { "%02X".format(it) }
+    }
+
+    private fun scanPackageAppOps(packageName: String, uid: Int, label: String, systemApp: Boolean, findings: MutableList<AuditFinding>) {
+        val manager = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return
+        AppOpsAuditDefinitions.forSdk(Build.VERSION.SDK_INT).forEach { definition ->
+            // Read-only query; noteOp/startOp would mutate the operation history.
+            val mode = runCatching { manager.checkOpNoThrow(definition.operation, uid, packageName) }.getOrNull()
+                ?: return@forEach
+            AppOpsFindingPolicy.toFinding(AppOpsEvidence(
+                packageName, label, definition.key, definition.label, mode, systemApp, definition.severity
+            ))?.let(findings::add)
+        }
     }
 
     private fun scanAccessibility(findings: MutableList<AuditFinding>) {

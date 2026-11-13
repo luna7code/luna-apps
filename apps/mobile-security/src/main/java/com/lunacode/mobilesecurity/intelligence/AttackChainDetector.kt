@@ -119,7 +119,7 @@ object AttackChainDetector {
     private fun chainExplanation(types: Set<ThreatSignalType>): String {
         val reasons = buildList {
             if (ThreatSignalType.APP_INSTALLED in types && ThreatSignalType.INPUT_METHOD_ENABLED in types) {
-                add("обнаружена установка приложения, зарегистрированного как способ ввода")
+                add("обнаружена установка приложения, зарегистрированного в качестве способа ввода")
             } else if (ThreatSignalType.APP_INSTALLED in types) {
                 add("обнаружена установка приложения")
             }
@@ -127,7 +127,7 @@ object AttackChainDetector {
             if (ThreatSignalType.SENSITIVE_PERMISSION_CHANGED in types) add("изменились чувствительные разрешения")
             if (ThreatSignalType.SPECIAL_ACCESS_ENABLED in types) add("появился специальный доступ")
             if (ThreatSignalType.OVERLAY_ACCESS_ENABLED in types) add("обнаружен доступ к отображению поверх других приложений")
-            if (ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types) add("обнаружен доступ к уведомлениям")
+            if (ThreatSignalType.NOTIFICATION_ACCESS_ENABLED in types) add("обнаружен доступ к содержимому уведомлений")
             if (ThreatSignalType.INPUT_METHOD_ENABLED in types) add("обнаружен включённый способ ввода")
             if (ThreatSignalType.VPN_CONFIGURATION_CHANGED in types) add("изменилась конфигурация VPN")
         }
