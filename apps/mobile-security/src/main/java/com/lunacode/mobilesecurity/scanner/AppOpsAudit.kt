@@ -10,9 +10,9 @@ object AppOpsAuditDefinitions {
         add(AppOpsDefinition("overlay", AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW, "отображение поверх других приложений", "MEDIUM"))
         add(AppOpsDefinition("usage", AppOpsManager.OPSTR_GET_USAGE_STATS, "доступ к статистике использования приложений", "MEDIUM"))
         add(AppOpsDefinition("write-settings", AppOpsManager.OPSTR_WRITE_SETTINGS, "изменение системных настроек", "MEDIUM"))
-        add(AppOpsDefinition("install-packages", AppOpsManager.OPSTR_REQUEST_INSTALL_PACKAGES, "запрос установки неизвестных приложений", "LOW"))
+        add(AppOpsDefinition("install-packages", "android:request_install_packages", "запрос установки неизвестных приложений", "LOW"))
         if (sdk >= Build.VERSION_CODES.R) {
-            add(AppOpsDefinition("manage-storage", AppOpsManager.OPSTR_MANAGE_EXTERNAL_STORAGE, "широкий доступ к файлам", "MEDIUM"))
+            add(AppOpsDefinition("manage-storage", "android:manage_external_storage", "широкий доступ к файлам", "MEDIUM"))
         }
     }
 }
