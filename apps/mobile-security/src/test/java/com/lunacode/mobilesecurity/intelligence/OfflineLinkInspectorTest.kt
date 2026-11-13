@@ -13,7 +13,7 @@ class OfflineLinkInspectorTest {
     @Test
     fun flagsShortener() {
         val result = OfflineLinkInspector.inspect("https://bit.ly/abc123")
-        assertTrue(result.indicators.any { it.contains("сократ") })
+        assertTrue(result.indicators.any { it.contains("сокращ") })
     }
 
     @Test
