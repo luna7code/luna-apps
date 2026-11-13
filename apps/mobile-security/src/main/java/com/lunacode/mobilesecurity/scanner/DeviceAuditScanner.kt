@@ -60,12 +60,22 @@ class DeviceAuditScanner(private val context: Context) {
             val label = runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
             val systemApp = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
             val signer = signerFingerprints(info).joinToString(",")
+            val permissionState = info.requestedPermissions.orEmpty().mapIndexed { index, permission ->
+                val granted = info.requestedPermissionsFlags
+                    ?.getOrNull(index)
+                    ?.and(PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
+                "$permission:$granted"
+            }.sorted().joinToString("|")
+            val permissionDigest = MessageDigest.getInstance("SHA-256")
+                .digest(permissionState.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02X".format(it) }
 
             appInventory.put(JSONObject().apply {
                 put("packageName", packageName)
                 put("label", label)
                 put("version", "${info.versionName.orEmpty()}:${versionCode(info)}")
                 put("signerSha256", signer)
+                put("permissionsSha256", permissionDigest)
                 put("lastUpdateTime", info.lastUpdateTime)
             })
 
