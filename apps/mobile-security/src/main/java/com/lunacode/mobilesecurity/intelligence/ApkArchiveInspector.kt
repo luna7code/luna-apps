@@ -81,6 +81,18 @@ object ApkArchiveInspector {
         return ApkArchiveInspection(native, nested, count.coerceAtMost(MAX_ENTRIES), total, suspicious.distinct().take(80), truncated)
     }
 
+    private fun canonicalPath(path: String): String {
+        val parts = mutableListOf<String>()
+        path.replace('\\\\', '/').split('/').forEach { part ->
+            when (part) {
+                "", "." -> Unit
+                ".." -> if (parts.isNotEmpty()) parts.removeAt(parts.lastIndex) else parts += ".."
+                else -> parts += part
+            }
+        }
+        return parts.joinToString("/")
+    }
+
     internal fun parseElf(path: String, bytes: ByteArray): NativeLibraryInfo {
         val parsed = ElfMetadataParser.inspect(bytes)
         val validHeader = bytes.size >= 20 && bytes[0] == 0x7f.toByte() &&
