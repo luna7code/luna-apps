@@ -389,6 +389,8 @@ private fun SecurityHome(
                     report = report,
                     scanning = scanning,
                     scanMessage = scanMessage,
+                    dailyMonitoringEnabled = dailyMonitoringEnabled,
+                    onDailyMonitoringChange = onDailyMonitoringChange,
                     onRefresh = onRefresh,
                     onScan = onScan
                 )
@@ -411,8 +413,10 @@ private fun SecurityOverview(
     report: ScanReportUi?,
     scanning: Boolean,
     scanMessage: String,
+    dailyMonitoringEnabled: Boolean,
+    onDailyMonitoringChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
-    onScan: () -> Unit
+    onScan: (Boolean) -> Unit
 ) {
     var showConsent by remember { mutableStateOf(false) }
     LazyColumn(
