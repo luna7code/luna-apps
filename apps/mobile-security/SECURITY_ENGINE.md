@@ -18,6 +18,7 @@ Release direction: private APK distribution. Current development artifact is a d
 - Active default-network VPN transport check via ConnectivityManager.
 - Per-app local fingerprint: package ID, label, version, last update time, signing certificate SHA-256, installer package provenance, and digest of requested/granted permission state.
 - Separate indication for multiple sensitive permissions currently marked as granted, distinct from merely requested permissions.
+- Explainable local Exposure Index (0–100) with bounded severity deductions and prioritized remediation actions; explicitly not a malware probability or a guarantee of safety.
 - Scan report encrypted with AES-GCM using an Android Keystore key.
 - Room history bounded to the latest 90 reports; the Killer Features tab displays the latest eight timeline entries.
 
@@ -60,7 +61,16 @@ No network request is made; domain reputation, DNS, redirects, and page contents
 ### 5. TRUST TIMELINE
 Shows the latest eight local scan snapshots with finding counts and newly detected changes. The database retains at most 90 reports; each payload is encrypted locally.
 
-### 6. PURA GUARD
+### 6. DEVICE INTEGRITY
+Checks whether Android reports a secure lock screen and whether public Build tags contain `test-keys`. It explicitly reports ADB / Developer Options as not observable from an ordinary third-party app: Android's public Settings.Global API returns zero for those keys to third-party callers. It does not pretend that this means debugging is disabled.
+
+### 7. INPUT TRUST
+Lists the currently enabled input methods and identifies the selected keyboard from Android's default input method setting. A keyboard can process typed content, but its presence is not proof of keylogging. Users can open Android's input-method settings to review or disable keyboards.
+
+### 8. EXPOSURE INDEX
+An explainable score computed from the current findings with bounded deductions by severity. The score only describes observed attack-surface exposure within PRO SEC's available coverage, not malware probability and not a general device safety verdict. Recommendations point to the relevant Android settings or application details screen; the app does not silently revoke permissions.
+
+### 9. PURA GUARD
 Device-specific background reliability guide for Huawei Pura 70 / EMUI. It provides user-controlled shortcuts to Android app details and battery optimization settings, plus manual instructions for App launch, Run in background and locking the app in Recents. It does not silently disable battery protections or guarantee exact-time background execution.
 
 ## Privacy model
@@ -83,14 +93,14 @@ Device-specific background reliability guide for Huawei Pura 70 / EMUI. It provi
 
 - CI currently builds debug APK, runs local JVM unit tests for URL heuristics, and runs Android Lint.
 - CI does not replace physical-device tests.
-- Still required: install/run on the target Pura 70, verify notification listener and Accessibility discovery on-device, measure scan duration/battery/memory, exercise APK X-RAY with benign and intentionally malformed samples, and test WorkManager while screen-off / power-saver / app-swiped-away.
+- Still required: install/run on the target Pura 70, verify notification listener, Accessibility, input method and lock-screen discovery on-device, measure scan duration/battery/memory, exercise APK X-RAY with benign and intentionally malformed samples, and test WorkManager while screen-off / power-saver / app-swiped-away.
+- Android's Settings.Global ADB_ENABLED and DEVELOPMENT_SETTINGS_ENABLED are not usable as a third-party detection source: official API documentation specifies that both return 0 to third-party apps. Do not infer ADB-disabled from these values.
 - No malware signature database or dynamic sandbox is currently implemented.
 
 ## Next milestones
 
 1. Complete CI verification and resolve all compiler, test and lint findings.
-2. Add local scan history browser with retention and report export controls.
-3. Add a signed offline threat package format with anti-rollback and explicit import confirmation.
-4. Add APK signing lineage / installed-package certificate comparison and safer exported-component permission inspection.
-5. Add guided response actions that open precise Android settings pages without attempting to change another app's grants silently.
-6. Establish a persistent private release signing key and versioned APK release process.
+2. Add a signed offline threat package format with an app-pinned public key, version anti-rollback, strict schema validation, and explicit import confirmation.
+3. Implement deeper APK analysis: signing-certificate lineage validation, exported-component permission inspection, DEX/static indicators, and a known-good signer trust store.
+4. Add guided response actions that open precise Android settings pages without attempting to change another app's grants silently.
+5. Establish a persistent private release signing key and versioned APK release process; keep the signing key outside GitHub and the APK itself.
