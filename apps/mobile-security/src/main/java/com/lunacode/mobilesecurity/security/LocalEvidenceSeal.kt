@@ -38,6 +38,9 @@ object ReportEnvelopeCodec {
     }
 
     fun decode(stored: String): ReportEnvelope {
+        if (stored.startsWith("PROSEC-CHAIN") && !stored.startsWith("$PREFIX\n")) {
+            return malformedEnvelope()
+        }
         if (!stored.startsWith("$PREFIX\n")) {
             return ReportEnvelope(
                 report = stored,
