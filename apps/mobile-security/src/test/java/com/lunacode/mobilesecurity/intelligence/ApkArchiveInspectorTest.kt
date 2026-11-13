@@ -1,6 +1,8 @@
 package com.lunacode.mobilesecurity.intelligence
 
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.random.Random
@@ -57,6 +59,39 @@ class ApkArchiveInspectorTest {
             file.writeBytes("not a zip".toByteArray())
             assertThrows(Exception::class.java) { ApkArchiveInspector.inspect(file) }
         } finally { file.delete() }
+    }
+
+    @Test
+    fun parsesGnuStackAndDynamicTextRelocationTags() {
+        val bytes = ByteArray(264)
+        bytes[0] = 0x7f; bytes[1] = 0x45; bytes[2] = 0x4c; bytes[3] = 0x46
+        bytes[4] = 2; bytes[5] = 1; bytes[18] = 183.toByte()
+        val header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        header.putShort(52, 64.toShort())
+        header.putShort(54, 56.toShort())
+        header.putShort(56, 3.toShort())
+        header.putLong(32, 64L)
+        fun ph(index: Int, type: Int, flags: Int, offset: Long, vaddr: Long, size: Long) {
+            val at = 64 + index * 56
+            header.putInt(at, type)
+            header.putInt(at + 4, flags)
+            header.putLong(at + 8, offset)
+            header.putLong(at + 16, vaddr)
+            header.putLong(at + 32, size)
+            header.putLong(at + 40, size)
+        }
+        ph(0, 1, 6, 0, 0x400000, bytes.size.toLong())
+        ph(1, 0x6474e551, 6, 0, 0, 0)
+        ph(2, 2, 6, 232, 0x4000e8, 32)
+        header.putLong(232, 22L)
+        header.putLong(240, 0L)
+        header.putLong(248, 0L)
+        header.putLong(256, 0L)
+
+        val result = ElfMetadataParser.inspect(bytes)
+        assertEquals(3, result.programHeaderCount)
+        assertEquals(false, result.executableStack)
+        assertEquals(true, result.textRelocations)
     }
 
     @Test
