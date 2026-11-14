@@ -1,7 +1,7 @@
 # FLY SECRET — Phase 1.4.3
 ## Product Owner Design Approval Ledger
 
-**Status:** IN PROGRESS — DA-01 APPROVED; DA-02…DA-16 and RA-01…RA-16 PENDING  
+**Status:** IN PROGRESS — DA-01…DA-05 APPROVED; DA-06…DA-16 and RA-01…RA-16 PENDING  
 **Repository:** luna7code/luna-apps  
 **Base document:** `docs/fly-secret/architecture/phase-1.4.2/FLY_SECRET_UX_DESIGN_CONSOLIDATION_OWNER_APPROVAL_PHASE_1.4.2.md`  
 **Base commit:** `9316b33c3eced91ef08b48b719d53953dbc44d26`  
@@ -408,7 +408,68 @@ These conditions operationalize the Phase 1.4.2 requirement to test Cyrillic, La
 **Implementation boundary:** This approval is a specification/design decision only. Implementation, prototype creation, code changes, font asset changes and runtime QA are not authorized by this approval.
 
 
-## 5. Decision register
+## 5. DA-05 — Primary navigation
+
+**Status:** APPROVED — Option A explicitly confirmed by the product owner.  
+**Source of truth:** Phase 1.4.2 §§4.1–4.3 and §13, DA-05 Navigation.  
+**Owner decision:** Option A — preserve exactly four primary destinations in this order: Chats, Calls, Contacts, Settings.  
+**Approval boundary:** Specification only. Implementation, prototype creation, code changes, route changes, deployment and QA are NOT authorized.
+
+### 5.1 Approved navigation contract — all 11 conditions
+
+1. The primary navigation contains exactly four destinations.
+2. Exact labels and order: **Chats → Calls → Contacts → Settings**.
+3. Destination order and route hierarchy remain consistent across supported platforms.
+4. The four destinations describe information architecture only; their presence does not claim that messaging, calling, identity or contact discovery is operational.
+5. Primary navigation must not rely on icon-only labels. Each destination must have a visible text label where presented as primary navigation and an accessible name.
+6. The selected destination must have an unmistakable visual and accessible selected state.
+7. Web navigation preserves browser history, deep-link fallback, and Back/Forward semantics.
+8. Message content, secrets, Recovery Kit material and cryptographic values must never be placed in URLs or navigation state.
+9. Notification badges must not imply incoming real messages or calls in the current non-crypto MVP.
+10. Opening Chats, Calls or Contacts must not itself trigger a system permission request.
+11. Existing Phase 1.2 route-family identifiers and hierarchy are retained. This decision creates no new route IDs.
+
+### 5.2 Consequences accepted
+
+**Benefits**
+- Preserves the four-destination information architecture already defined in Phase 1.4.2.
+- Maintains consistent destination order and user-journey expectations across platforms.
+- Avoids changing the primary navigation hierarchy.
+- Keeps navigation structure separate from capability availability so unavailable or demo-only states can be represented honestly.
+
+**Costs and limitations**
+- All four destinations remain represented in the primary information architecture, including destinations whose capabilities are unavailable in the current non-crypto MVP.
+- Each destination requires accurate capability-state messaging; a visible tab must not imply that its underlying service is operational.
+- The four-item structure must still be adapted to platform form factors under the separate DA-06 decision.
+
+**Alternative consequences acknowledged**
+- Reordering the four destinations would change expected navigation sequence and require review of route hierarchy, user journeys, platform consistency and related documentation.
+- Reducing the number of primary destinations would require a separate decision about removed destinations, their route behavior and the resulting discoverability/direct-access trade-offs.
+
+### 5.3 Scope exclusions
+
+DA-05 does not decide bottom navigation, rail/sidebar placement, responsive breakpoints or adaptive transitions; these belong to DA-06. It does not approve visual styling, icon artwork, typography, component dimensions, new routes, deep-link schemes, route migrations, or any implementation activity. It does not claim any messaging, calling, contact-discovery, push or cryptographic capability is implemented.
+
+### 5.4 Verification plan — NOT RUN
+
+If implementation is separately authorized, verify destination count, labels and order on every supported platform; accessible names and selected-state clarity; Web history/deep-link/Back/Forward behavior; absence of sensitive content in URLs/navigation state; absence of misleading real-message or real-call badges; and absence of permission prompts caused solely by opening the relevant tabs.
+
+All checks remain **NOT_RUN**. No runtime verification is claimed.
+
+### 5.5 Approval record
+
+- Decision: DA-05 — Primary navigation.
+- Selected option: **A — preserve Chats, Calls, Contacts, Settings in that exact order**.
+- Product-owner approval: **RECEIVED** — explicit confirmation of all 11 conditions, consequences and limitations.
+- Decision state: **APPROVED**.
+- Approval scope: specification only.
+- Implementation/prototype/code/route-change/deployment/QA authorization: **NOT GRANTED**.
+- Verification: **NOT_RUN**.
+
+**Explicit owner confirmation:** “Подтверждаю весь пакет DA-05 Option A: все 11 условий, последствия и ограничения. Это утверждение спецификации בלבד; реализацию, прототип и QA не разрешаю.”
+
+
+## 6. Decision register
 
 | Decision | Status |
 |---|---|
@@ -416,22 +477,23 @@ These conditions operationalize the Phase 1.4.2 requirement to test Cyrillic, La
 | DA-02 — Accent system | **APPROVED** — Deep Burgundy; preliminary tokens approved, contrast validation OPEN |
 | DA-03 — Theme behavior | **APPROVED** — Option A, all eight conditions explicitly confirmed; detailed palette tokens remain separate |
 | DA-04 — Typography System | **APPROVED** — Option A; complete typography, unit, Cyrillic and acceptance package explicitly confirmed |
-| DA-05…DA-16 | PENDING |
+| DA-05 — Primary navigation | **APPROVED** — Option A; all 11 conditions explicitly confirmed; implementation/prototype/QA not authorized |
+| DA-06…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
 
-## 6. Project invariants retained
+## 7. Project invariants retained
 
 - The current product scope remains a non-crypto MVP shell; no real messaging, calls, file transfer, push, recovery, or E2EE is claimed as implemented.
 - The mandatory bilingual non-crypto disclosure and fail-closed capability-state taxonomy remain in force.
-- Four primary destinations remain Chats, Calls, Contacts, Settings.
+- Four primary destinations remain Chats, Calls, Contacts, Settings, in the DA-05-approved order.
 - TOR MODE remains excluded from product, architecture, UI, configuration, tests, and roadmap.
 - Decentralization remains future-only.
 - All 27 Red-Team scenarios remain **NOT_RUN**.
 - `main` is not modified. No pull request is created.
 
-## 7. Verification status
+## 8. Verification status
 
 - [x] Owner decision recorded in this ledger.
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
@@ -439,9 +501,10 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] DA-02 — Deep Burgundy and preliminary tokens recorded as explicitly APPROVED.
 - [x] DA-03 — Option A and all eight conditions explicitly approved; detailed palette tokens remain separately pending.
 - [x] DA-04 — Option A and the complete typography package explicitly approved; implementation/prototype authorization remains NOT GRANTED.
+- [x] DA-05 — Option A and all 11 navigation conditions, consequences and limitations explicitly approved; implementation/prototype/QA authorization remains NOT GRANTED.
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
-- [ ] DA-02…DA-16 approvals.
+- [ ] DA-06…DA-16 approvals.
 - [ ] RA-01…RA-16 approvals.
 - [ ] Any implementation, prototype, or product QA — not authorized in this phase.
