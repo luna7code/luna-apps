@@ -469,7 +469,81 @@ All checks remain **NOT_RUN**. No runtime verification is claimed.
 **Explicit owner confirmation:** “Подтверждаю весь пакет DA-05 Option A: все 11 условий, последствия и ограничения. Это утверждение спецификации בלבד; реализацию, прототип и QA не разрешаю.”
 
 
-## 6. Decision register
+## 6. DA-06 — Responsive behavior
+
+**Status:** APPROVED — Option A explicitly confirmed by the product owner.  
+**Source of truth:** Phase 1.4.2 §§4.2, responsive breakpoints in the design baseline, §§16.1–16.4, and §17.2 handoff requirements; decision register DA-06.  
+**Owner decision:** Option A — Adaptive Navigation. For 600–839 px, choose bottom navigation or Navigation Rail according to the approved adaptive layout rules below.  
+**Approval boundary:** Specification only. Implementation, prototype creation or modification, code changes, deployment and QA are NOT authorized.
+
+### 6.1 Approved responsive navigation contract — all 12 conditions
+
+1. **Four unchanged destinations.** Primary navigation contains exactly Chats, Calls, Contacts, Settings, in the order approved by DA-05.
+2. **320–359 px.** Use bottom navigation with four visible text labels. Main content remains single-column with 16 px side insets.
+3. **360–599 px.** Use bottom navigation with four visible text labels. Main content remains single-column with 16–20 px side insets.
+4. **600–839 px.** Either bottom navigation or Navigation Rail is permitted. Choose based on available space, orientation and content layout. Use Rail only when it genuinely improves the content workspace and does not create cramped content. If that advantage is not established, retain bottom navigation.
+5. **840–1199 px.** Use a Navigation Rail on the left alongside the main content area.
+6. **1200–1599 px.** Use a persistent sidebar and centered content area with maximum width 1120 px.
+7. **1600 px and above.** Retain side navigation and constrain the main content area to maximum width 1200 px; do not stretch content across the full display.
+8. **Continuous adaptation.** On window resizing or orientation changes, navigation may change form without changing the selected destination, destination order or route semantics. An app restart must not be required solely to change navigation form.
+9. **Navigation accessibility.** Do not rely on icons alone. All four destinations retain text labels and accessible names, and the selected destination has an unmistakable state.
+10. **Interactive target size.** Preserve the baseline target of at least 44 × 44 CSS px/pt; Android controls should aim for 48 dp where practical.
+11. **Platform adaptation.** Account for Android edge-to-edge, system bars and font scaling; iOS Dynamic Type, VoiceOver and reduced motion; Web keyboard access, zoom/reflow, browser history and focus; Desktop window resizing, keyboard navigation and focus management.
+12. **Security and truthful state.** Adaptation must not introduce badges that imply real incoming messages or calls. Opening Chats, Calls or Contacts alone must not request system permissions. Secrets and cryptographic values must not enter URLs or navigation state.
+
+### 6.2 Adaptive selection rule for 600–839 px
+
+The choice between bottom navigation and Navigation Rail is based on available content space, orientation and the resulting layout quality. Use Navigation Rail only where the layout matrix demonstrates a genuine improvement to the usable content workspace while preserving readable content, usable interaction targets and accessible navigation. If the advantage is not established or the layout is ambiguous, the default is bottom navigation.
+
+The source baseline does not define a numeric minimum content width or a precise switch threshold within 600–839 px. No numeric threshold is approved by DA-06. A detailed layout matrix for both modes, portrait and landscape orientations, text scaling, focus and interaction targets must be specified before implementation. This approval does not assert that a selection algorithm or breakpoint has already been implemented or tested.
+
+### 6.3 Transition behavior
+
+- Preserve the selected destination when switching between bottom navigation, rail and sidebar.
+- Do not create duplicate navigation items or new route identifiers.
+- Do not lose the current screen context solely because the window width or orientation changes.
+- Preserve Web browser history, deep-link fallback and Back/Forward behavior.
+- Account for mobile system insets and the on-screen keyboard.
+- Focus must not be lost or moved unexpectedly during a navigation-form transition.
+
+### 6.4 Consequences accepted
+
+**Benefits**
+- Uses available screen space more appropriately across compact phones, tablets and desktop windows.
+- Preserves one information architecture and the DA-05 destination order across platforms.
+- Keeps compact devices focused on content while allowing side navigation where wider layouts support it.
+
+**Costs and trade-offs**
+- Requires multiple navigation layouts and responsive transition logic.
+- Increases the number of layout, orientation, font-scaling and focus states requiring verification.
+- The 600–839 px range needs particular attention because two navigation forms are allowed.
+- Poorly handled transitions could cause focus loss, cramped content or reduced accessibility.
+
+### 6.5 Scope exclusions
+
+DA-06 does not authorize implementation, code or route changes, prototype creation or modification, MagicPath changes, deployment or publication. It does not certify that any existing app is responsive or accessible. It does not change the number or order of destinations approved by DA-05, introduce new routes, or imply that messaging, calls, contact discovery or security capabilities are operational.
+
+### 6.6 Verification plan — NOT RUN
+
+If implementation is separately authorized, verify each specified width range; both allowed 600–839 px modes; portrait and landscape; resize and orientation transitions; destination and route-state preservation; keyboard and focus behavior; text scaling and zoom/reflow; accessible labels and selected state; target sizes; platform system insets; Web history and deep links; and absence of sensitive navigation state or misleading capability badges.
+
+All checks remain **NOT_RUN**. No runtime, browser, Playwright, accessibility or platform QA is claimed.
+
+### 6.7 Approval record
+
+- Decision: DA-06 — Responsive behavior.
+- Selected option: **A — Adaptive Navigation**.
+- 600–839 px behavior: **adaptive choice between bottom navigation and Navigation Rail under the approved selection rule**.
+- Product-owner approval: **RECEIVED** — explicit confirmation of all 12 conditions, consequences and limitations.
+- Decision state: **APPROVED**.
+- Approval scope: specification only.
+- Implementation/prototype/code/deployment/QA authorization: **NOT GRANTED**.
+- Verification: **NOT_RUN**.
+
+**Explicit owner confirmation:** “Подтверждаю весь пакет DA-06 Option A в изложенной редакции: все 12 условий, последствия и ограничения, включая адаптивный выбор нижней панели или rail на 600–839 px. Это утверждение только спецификации. Реализацию, прототип, изменения кода, deployment и QA НЕ разрешаю.”
+
+
+## 7. Decision register
 
 | Decision | Status |
 |---|---|
@@ -478,12 +552,13 @@ All checks remain **NOT_RUN**. No runtime verification is claimed.
 | DA-03 — Theme behavior | **APPROVED** — Option A, all eight conditions explicitly confirmed; detailed palette tokens remain separate |
 | DA-04 — Typography System | **APPROVED** — Option A; complete typography, unit, Cyrillic and acceptance package explicitly confirmed |
 | DA-05 — Primary navigation | **APPROVED** — Option A; all 11 conditions explicitly confirmed; implementation/prototype/QA not authorized |
-| DA-06…DA-16 | PENDING |
+| DA-06 — Responsive behavior | **APPROVED** — Option A; all 12 conditions, consequences and limitations explicitly confirmed; implementation/prototype/QA not authorized |
+| DA-07…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
 
-## 7. Project invariants retained
+## 8. Project invariants retained
 
 - The current product scope remains a non-crypto MVP shell; no real messaging, calls, file transfer, push, recovery, or E2EE is claimed as implemented.
 - The mandatory bilingual non-crypto disclosure and fail-closed capability-state taxonomy remain in force.
@@ -493,7 +568,7 @@ The normative definitions, recommendations, and consequences for the remaining d
 - All 27 Red-Team scenarios remain **NOT_RUN**.
 - `main` is not modified. No pull request is created.
 
-## 8. Verification status
+## 9. Verification status
 
 - [x] Owner decision recorded in this ledger.
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
@@ -502,9 +577,10 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] DA-03 — Option A and all eight conditions explicitly approved; detailed palette tokens remain separately pending.
 - [x] DA-04 — Option A and the complete typography package explicitly approved; implementation/prototype authorization remains NOT GRANTED.
 - [x] DA-05 — Option A and all 11 navigation conditions, consequences and limitations explicitly approved; implementation/prototype/QA authorization remains NOT GRANTED.
+- [x] DA-06 — Option A and all 12 responsive navigation conditions, consequences and limitations explicitly approved; implementation/prototype/deployment/QA authorization remains NOT GRANTED.
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
-- [ ] DA-06…DA-16 approvals.
+- [ ] DA-07…DA-16 approvals.
 - [ ] RA-01…RA-16 approvals.
 - [ ] Any implementation, prototype, or product QA — not authorized in this phase.
