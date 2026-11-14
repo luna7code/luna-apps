@@ -121,7 +121,7 @@ The owner has approved these values as the **preliminary DA-02 palette tokens**.
 
 ## 4. DA-03 — Theme behavior, appearance mode and preference persistence
 
-**Status:** PENDING — options prepared; no owner approval received.  
+**Status:** PENDING — owner selected Option A for final consideration; explicit approval not received.  
 **Baseline source:** Phase 1.4.2 DA-03 recommends system default with light and dark; alternatives are light-only or dark-only.  
 **Current approved visual constraints:** H = Claret / Burgundy & Near-Black with DA-02 Deep Burgundy preliminary tokens; F = optional Obsidian & Emerald theme in Settings. DA-03 does not alter either approved palette.
 
@@ -207,13 +207,88 @@ The appearance mode and palette family should be separate settings, not a single
 - Do not describe the preference as “local only” until backup, sync, telemetry, crash-reporting, export and deletion behavior are documented and verified.
 - No cloud synchronization is included in this proposal.
 
+
+### 4.9 Final-consideration specification — Option A (owner-selected direction; NOT APPROVED)
+
+The owner selected Option A as the direction for final consideration. This is not approval. The following exact behavioral contract is proposed for sign-off.
+
+**A. Independent settings**
+- `appearanceMode` accepts exactly `system`, `light`, `dark`.
+- `paletteFamily` accepts exactly `H`, `F`.
+- Fresh-install defaults are `system` and `H`.
+- The effective appearance is derived from the selected mode and current OS/browser preference; it is not persisted as a third user preference.
+- The effective palette is derived from `paletteFamily` and effective appearance. Theme choice does not change any security capability, identity state, privacy state, or network behavior.
+
+**B. Deterministic resolution**
+- If `appearanceMode=system`, resolve Light or Dark from the platform appearance signal.
+- If `appearanceMode=light` or `dark`, ignore subsequent OS appearance changes until the user selects System.
+- When the user changes from manual Light/Dark to System, immediately re-resolve from the current platform signal.
+- If the platform does not expose a usable appearance signal, use Light as the documented fallback while keeping the stored mode as `system`; the Settings UI must explain that system appearance is unavailable on that platform. This fallback requires owner confirmation as part of DA-03.
+- The app must not silently convert a manual override into System or silently change the selected palette.
+
+**C. Palette switching**
+- H and F each have Light and Dark variants.
+- Switching H ↔ F preserves `appearanceMode`; the target palette's variant matching the current effective appearance is applied.
+- H Dark must retain the approved CLARET reference direction and DA-02 preliminary Deep Burgundy tokens. H Light is a derived companion and must be reviewed as part of later visual approval; DA-03 does not approve its detailed colors.
+- F Light and F Dark must preserve the distinct Obsidian & Emerald identity. DA-03 does not approve detailed F tokens.
+- No mixed H/F surfaces or partial palette inheritance is permitted, except shared semantic tokens whose meanings are explicitly defined and contrast-verified.
+
+**D. Persistence scope**
+- Persist both settings independently across normal app restarts and process termination on each supported platform.
+- Proposed persistence scope is per app installation/device. No account sync, cross-device sync, cloud backup guarantee, or “local only” claim is approved by this decision.
+- On first launch with no stored preference, apply System + H. On upgrade, preserve an existing valid preference if one exists; otherwise use System + H.
+- If preference storage is unavailable or corrupt, fail predictably to System + H for that run, do not crash, and do not claim the fallback was saved. Whether to surface a recoverable settings warning must be decided in implementation design.
+- Deleting app data / reinstalling returns to System + H unless a separately approved migration or backup policy says otherwise.
+
+**E. Startup and lifecycle**
+- Resolve preferences and the current effective theme before presenting the first fully styled application frame, to avoid a visible flash of the wrong palette.
+- Re-evaluate System mode on cold start, app resume, and platform appearance-change events.
+- Apply theme changes atomically across navigation, dialogs, sheets, forms, controls, empty states and accessibility surfaces; avoid mixed-theme frames.
+- If the platform reports an appearance change while the app is backgrounded, use the latest value on resume.
+
+**F. Settings UX**
+- Show two separate controls: “Appearance” (System / Light / Dark) and “Color theme” (H / F, with descriptive names).
+- Show the effective appearance, e.g. “System · currently Dark”, when System is selected.
+- Include previews for H and F in the currently effective appearance; do not make preview selection change the live theme until the user confirms/selects it.
+- Explain that both palettes support Light and Dark under this proposal.
+- Do not use security badges, shield icons, “verified”, “protected”, or security-score language for theme selection.
+
+**G. Platform-specific acceptance matrix**
+- Android and iOS: verify OS signal, manual override, resume behavior, process death, restart, first frame, and palette switching.
+- Desktop: verify supported OS appearance integration and restart behavior for each supported desktop target; platform-specific support must be documented rather than assumed.
+- Web: verify browser/system preference changes, page reload, tab lifecycle, storage denial/quota/corruption and browser-specific behavior. Do not claim native parity without evidence.
+- Across all targets: verify all four combinations H-Light, H-Dark, F-Light, F-Dark and all critical component states. DA-02 contrast verification remains required; DA-03 approval does not waive it.
+
+**H. Explicit consequences of selecting A**
+- Product benefit: users can choose a brand palette independently of brightness and retain OS integration.
+- Accessibility benefit: users can force Light or Dark even when OS preference is unsuitable; actual accessibility still depends on contrast and component testing.
+- Design cost: four complete theme variants, not merely recolored backgrounds; each requires surfaces, text, borders, icons, focus, selected/disabled states, overlays and dialogs.
+- Engineering cost: platform appearance observers, deterministic preference resolution, persistence, migration/default handling, startup theme resolution and Web storage fallbacks.
+- QA cost: four palette/appearance combinations × supported platforms × lifecycle transitions, including OS changes during background/resume.
+- Maintenance cost: future components must define tokens for all four combinations and cannot hard-code H-only or F-only colors.
+- Schedule implication: DA-03 A is the most complete option and has the largest design/implementation/test surface. No schedule estimate is made at this approval stage.
+
+**I. Owner confirmation required**
+Please explicitly approve or request changes to all of the following:
+1. Both H and F receive Light and Dark variants.
+2. Fresh install and missing/corrupt preference fallback: System + H.
+3. System follows the current OS/browser appearance; manual Light/Dark overrides it until System is reselected.
+4. H/F switching preserves the selected appearance mode.
+5. Preferences persist per app installation/device; no cloud or cross-device sync is included.
+6. Platform without a usable system appearance signal falls back to Light while retaining System mode and showing an explanatory Settings message.
+7. Startup resolves the effective theme before the first fully styled frame; lifecycle changes apply atomically.
+8. Detailed H Light and F Light/Dark palette tokens remain subject to later visual approval and contrast verification.
+
+**Decision state:** PENDING. Option A is selected as the direction for final consideration only. No DA-03 approval has been inferred.
+
 ### 4.8 Decision record
 
 - Decision: DA-03 Theme behavior.
 - Options presented: A, B, C.
 - Recommendation: **A — Adaptive system mode + independent H/F palette selection**.
-- State: **PENDING**; no option is approved.
+- State: **PENDING**; Option A selected as direction for final consideration only.
 - Product-owner approval: **NOT RECEIVED**.
+- Exact behavioral contract: documented in §4.9; all eight confirmation points remain pending.
 - Implementation/prototype authorization: **NOT GRANTED**.
 
 
