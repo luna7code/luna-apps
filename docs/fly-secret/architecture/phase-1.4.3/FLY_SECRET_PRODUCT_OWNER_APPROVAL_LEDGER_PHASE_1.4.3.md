@@ -396,10 +396,10 @@ These conditions operationalize the Phase 1.4.2 requirement to test Cyrillic, La
 
 - Decision: DA-04 Typography System.
 - Options originally presented: A — Native system typography; B — one bundled cross-platform family; C — licensed brand typeface.
-- Product-owner direction: **Option A selected for final consideration**.
-- State: **PENDING — NOT APPROVED**.
-- Product-owner final approval: **NOT RECEIVED**.
-- Proposed approval scope: native stacks in §4.1; exact scale in §4.2; unit clarification in §4.2; source rules in §4.3; Cyrillic and mixed-script acceptance conditions in §4.4; consequences and out-of-scope items in §4.6.
+- Product-owner decision: **Option A explicitly APPROVED**.
+- State: **APPROVED** — complete Option A package confirmed by the product owner.
+- Product-owner final approval: **RECEIVED** — explicit confirmation of the complete package, including proposed platform units, Cyrillic/mixed-script rules and acceptance criteria.
+- Approved scope: native stacks in §4.1; exact scale in §4.2; platform unit clarification in §4.2; source rules in §4.3; Cyrillic and mixed-script acceptance conditions in §4.4; consequences and out-of-scope items in §4.6.
 - Verification: NOT_RUN.
 - Implementation/prototype authorization: **NOT GRANTED**.
 
