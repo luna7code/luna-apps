@@ -297,7 +297,7 @@ The product owner explicitly approved all eight conditions below. This list is t
 
 ## 4. DA-04 — Typography System
 
-**Status:** PENDING — Option A selected by the product owner as the direction for final consideration; separate approval not received.  
+**Status:** APPROVED — Option A and the complete conditions in this section explicitly approved by the product owner.  
 **Source of truth:** Phase 1.4.2 §6.5 “Typography” and §7 “Consolidated component contract”.  
 **Source baseline:** Phase 1.4.2 native system stacks, exact type scale and mandatory typographic rules.  
 **Decision boundary:** This update prepares precise approval conditions. It does not approve DA-04, authorize implementation, or authorize a prototype.
@@ -403,7 +403,9 @@ These conditions operationalize the Phase 1.4.2 requirement to test Cyrillic, La
 - Verification: NOT_RUN.
 - Implementation/prototype authorization: **NOT GRANTED**.
 
-Final approval must explicitly confirm the complete proposed scope above or identify specific amendments. Selection of Option A as a direction is not final approval and does not authorize implementation or prototyping.
+**Approval record:** The product owner explicitly confirmed: “Подтверждаю весь пакет условий DA-04 Option A, включая предложенные единицы измерения, правила кириллицы и критерии приёмки.” This approves the complete DA-04 specification in §§4.1–4.6, including the proposed unit clarification, Cyrillic and mixed-script acceptance conditions, exact Phase 1.4.2 scale, consequences and scope exclusions. No amendment was requested.
+
+**Implementation boundary:** This approval is a specification/design decision only. Implementation, prototype creation, code changes, font asset changes and runtime QA are not authorized by this approval.
 
 
 ## 5. Decision register
@@ -413,7 +415,7 @@ Final approval must explicitly confirm the complete proposed scope above or iden
 | DA-01 — Visual direction | **APPROVED** |
 | DA-02 — Accent system | **APPROVED** — Deep Burgundy; preliminary tokens approved, contrast validation OPEN |
 | DA-03 — Theme behavior | **APPROVED** — Option A, all eight conditions explicitly confirmed; detailed palette tokens remain separate |
-| DA-04 — Typography System | PENDING — options A/B/C prepared; recommendation A; no approval |
+| DA-04 — Typography System | **APPROVED** — Option A; complete typography, unit, Cyrillic and acceptance package explicitly confirmed |
 | DA-05…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
@@ -436,7 +438,7 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
 - [x] DA-02 — Deep Burgundy and preliminary tokens recorded as explicitly APPROVED.
 - [x] DA-03 — Option A and all eight conditions explicitly approved; detailed palette tokens remain separately pending.
-- [x] DA-04 — source-derived typography baseline and options A/B/C recorded as proposals; approval not inferred.
+- [x] DA-04 — Option A and the complete typography package explicitly approved; implementation/prototype authorization remains NOT GRANTED.
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
