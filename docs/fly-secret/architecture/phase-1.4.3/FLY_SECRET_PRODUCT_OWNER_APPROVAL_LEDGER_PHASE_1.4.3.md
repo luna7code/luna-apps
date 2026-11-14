@@ -55,7 +55,7 @@ The previous ledger wording “Carbon & Signal” was an incorrect assistant int
 
 ## 3. DA-02 — Accent system
 
-**Status:** PENDING — owner selected option C for specification; explicit approval not yet given.  
+**Status:** APPROVED — owner explicitly approved option C / Deep Burgundy and its preliminary palette tokens. Contrast and component-state verification remain OPEN.  
 **Owner-selected proposal:** **C — Deep Burgundy**, adapted to the corrected DA-01 Claret / Burgundy & Near-Black direction.
 
 ### 3.1 Proposed palette roles (provisional, not approved tokens)
@@ -69,7 +69,7 @@ The previous ledger wording “Carbon & Signal” was an incorrect assistant int
 | Warm ivory text | `#F1E8E1` | Candidate primary text on dark surfaces |
 | Muted secondary text | To be measured | Secondary labels; must meet applicable text contrast requirements |
 
-These are candidate values sampled from the selected conceptual palette, not a validated design-token set. Do not treat any value as final or implementation-ready before approval and contrast testing.
+The owner has approved these values as the **preliminary DA-02 palette tokens**. They are approved as the design direction and initial token candidates, but are not yet contrast-validated or cleared for implementation. Any token adjustment required by accessibility testing must be returned for owner review if it materially changes the approved visual direction.
 
 ### 3.2 Proposed usage rules
 
@@ -97,7 +97,7 @@ These are candidate values sampled from the selected conceptual palette, not a v
 - Candidate primary-action burgundy may not meet text/icon contrast requirements; action controls may need ivory foreground, stronger tonal separation, border or shape treatment.
 - More dark-theme-specific contrast and component-state testing is required; light-theme behavior remains a separate DA-03 decision.
 
-### 3.4 Required verification before token approval
+### 3.4 Required verification before implementation / final contrast sign-off
 
 - Calculate contrast for every text/background pair, including normal and large text.
 - Verify icons, controls, focus rings, selected states, disabled states, borders, overlays, sheets, dialogs and navigation.
@@ -110,9 +110,11 @@ These are candidate values sampled from the selected conceptual palette, not a v
 
 - Decision: DA-02 Accent system.
 - Owner selection: Option C — Deep Burgundy.
-- State: **PENDING**; selection authorizes preparation of this proposal only.
-- Explicit approval: **NOT RECEIVED**.
-- Exact tokens: provisional candidates only.
+- State: **APPROVED** by explicit product-owner confirmation.
+- Approved option: C — Deep Burgundy.
+- Approved preliminary tokens: `#080607`, `#26090E`, `#4B1018`, `#791F2D`, `#F1E8E1`.
+- Contrast validation: **OPEN / REQUIRED**; no WCAG conformance claim is made.
+- Final secondary-text and semantic-state tokens: still to be specified and verified.
 - Implementation/prototype authorization: **NOT GRANTED**.
 
 
@@ -121,7 +123,7 @@ These are candidate values sampled from the selected conceptual palette, not a v
 | Decision | Status |
 |---|---|
 | DA-01 — Visual direction | **APPROVED** |
-| DA-02 — Accent system | PENDING — option C selected for review; not approved |
+| DA-02 — Accent system | **APPROVED** — Deep Burgundy; preliminary tokens approved, contrast validation OPEN |
 | DA-03…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
@@ -142,7 +144,8 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] Owner decision recorded in this ledger.
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
 - [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
-- [x] DA-02 option C recorded as a proposal only; no approval inferred.
+- [x] DA-02 — Deep Burgundy and preliminary tokens recorded as explicitly APPROVED.
+- [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
 - [ ] DA-02…DA-16 approvals.
