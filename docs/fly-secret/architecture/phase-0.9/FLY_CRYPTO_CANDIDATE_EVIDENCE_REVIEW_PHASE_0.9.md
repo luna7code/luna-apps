@@ -647,6 +647,7 @@ All sources below were accessed/reviewed on 2026-11-14. Release tags and branch 
 - [S11] Official Cargo dependency/license/advisory/source policy: https://github.com/matrix-org/matrix-rust-sdk/blob/main/.deny.toml
 - [S14] Official Apple binding build instructions: https://github.com/matrix-org/matrix-rust-sdk/blob/main/bindings/apple/README.md
 - [S15] Official security policy: https://github.com/matrix-org/matrix-rust-sdk/security
+- [S16] Matrix Rust SDK platform/binding notes (supplementary documentation; verify against upstream release sources): https://matrixdocs.github.io/docs/sdks/matrix-rust-sdk
 
 ---
 
