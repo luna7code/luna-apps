@@ -70,9 +70,10 @@ The normative definitions, recommendations, and consequences for the remaining d
 ## 5. Verification status
 
 - [x] Owner decision recorded in this ledger.
-- [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome.
-- [ ] GitHub fetch-back verification of this ledger.
-- [ ] Branch comparison against `main`.
+- [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
+- [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
+- [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
+- [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
 - [ ] DA-02…DA-16 approvals.
 - [ ] RA-01…RA-16 approvals.
 - [ ] Any implementation, prototype, or product QA — not authorized in this phase.
