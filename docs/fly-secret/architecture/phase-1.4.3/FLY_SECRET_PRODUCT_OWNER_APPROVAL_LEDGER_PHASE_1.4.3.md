@@ -269,7 +269,7 @@ The owner selected Option A as the direction for final consideration. This is no
 - Schedule implication: DA-03 A is the most complete option and has the largest design/implementation/test surface. No schedule estimate is made at this approval stage.
 
 **I. Owner confirmation required**
-Please explicitly approve or request changes to all of the following:
+The product owner explicitly approved all eight conditions below. This list is the approved behavioral contract:
 1. Both H and F receive Light and Dark variants.
 2. Fresh install and missing/corrupt preference fallback: System + H.
 3. System follows the current OS/browser appearance; manual Light/Dark overrides it until System is reselected.
