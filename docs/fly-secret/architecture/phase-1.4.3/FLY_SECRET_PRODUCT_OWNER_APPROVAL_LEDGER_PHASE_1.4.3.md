@@ -18,15 +18,16 @@ This phase is an approval and design-specification activity only. It does not au
 ## 2. DA-01 — Visual direction
 
 **Status:** APPROVED  
-**Owner decision:** Primary direction **H — Carbon & Signal**, with **F — Obsidian & Emerald** as an additional selectable theme in Settings.
+**Owner decision (clarified by visual reference):** Primary direction **H — Claret / Burgundy & Near-Black**, matching the user-provided four-screen CLARET reference. **F — Obsidian & Emerald** remains the separately selectable additional theme in Settings, as previously requested.
 
-### 2.1 Primary identity: H — Carbon & Signal
+### 2.1 Primary identity: H — Claret / Burgundy & Near-Black
 
-- Near-black / carbon foundation.
-- Neutral surface hierarchy.
-- One restrained signature accent; its exact hue and tokens are not decided in DA-01.
-- Applies as the primary visual identity across the product.
-- The accepted trade-off is that distinctiveness depends on disciplined accent usage, typography, layout, and contrast rather than multiple decorative colors.
+- Use the uploaded CLARET reference image (four mobile screens: Loading, Home, Education, Profile) as the visual source of truth for the H direction.
+- Deep burgundy / wine-red primary surfaces and cards against near-black backgrounds.
+- Muted dusty-rose / red accents and warm ivory typography; restrained fine borders and low-glare surfaces.
+- Premium editorial character: elegant serif display typography paired with compact uppercase sans-serif labels, generous spacing, subtle texture, and restrained ornament.
+- Do not substitute teal, emerald, or generic carbon-gray styling for this primary palette.
+- Exact production color tokens, contrast pairs, typography mapping, and component-state tokens remain to be measured/specifed under DA-02 and accessibility verification.
 
 ### 2.2 Additional Settings theme: F — Obsidian & Emerald
 
@@ -37,7 +38,7 @@ This phase is an approval and design-specification activity only. It does not au
 
 ### 2.3 Consequences and constraints
 
-1. The design system must support a primary Carbon & Signal appearance and a separately selectable Obsidian & Emerald theme.
+1. The design system must support a primary Claret / Burgundy & Near-Black appearance based on the supplied reference and a separately selectable Obsidian & Emerald theme.
 2. Theme selection is a user preference; it must not alter security capability states or imply a security level.
 3. Emerald must not be used as a universal proxy for trust, identity verification, encryption, or security success.
 4. Warning, danger, success, focus, disabled, and informational states require explicit semantic tokens independent of the brand accent.
@@ -45,7 +46,11 @@ This phase is an approval and design-specification activity only. It does not au
 6. DA-02 must define exact tokens and contrast requirements. No unverified contrast ratio is claimed here.
 7. This approval specifies design direction only; it does not authorize implementation or prototype creation.
 
-**Approval evidence:** Explicit product-owner instruction in the project conversation: “Я выбераю H и дополнительно в настройках тему F”. Recorded as the owner decision for DA-01.
+**Approval evidence:** Explicit owner selection of H and optional F, followed by clarification that H was selected because of the color shown and that the uploaded CLARET reference is the intended palette. The uploaded image is the visual reference for H.
+
+## 2.4 Visual-reference interpretation correction
+
+The previous ledger wording “Carbon & Signal” was an incorrect assistant interpretation of H and is superseded by this clarification. The owner-selected H direction is the burgundy / wine-red and near-black CLARET palette in the uploaded reference, not teal/gray Carbon & Signal. This correction does not approve DA-02 or any exact hex token.
 
 ## 3. Decision register
 
