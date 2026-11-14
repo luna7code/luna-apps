@@ -641,7 +641,7 @@ All accessibility, assistive-technology, browser, Android, iOS, Desktop, visual 
 | DA-04 — Typography System | **APPROVED** — Option A; complete typography, unit, Cyrillic and acceptance package explicitly confirmed |
 | DA-05 — Primary navigation | **APPROVED** — Option A; all 11 conditions explicitly confirmed; implementation/prototype/QA not authorized |
 | DA-06 — Responsive behavior | **APPROVED** — Option A; all 12 conditions, consequences and limitations explicitly confirmed; implementation/prototype/QA not authorized |
-| DA-07…DA-16 | PENDING |
+| DA-07 — Accessibility target | **APPROVED** — Option A; WCAG 2.2 AA Web + equivalent native outcomes; complete criteria and limitations explicitly confirmed; implementation/prototype/QA not authorized |\n| DA-08…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
