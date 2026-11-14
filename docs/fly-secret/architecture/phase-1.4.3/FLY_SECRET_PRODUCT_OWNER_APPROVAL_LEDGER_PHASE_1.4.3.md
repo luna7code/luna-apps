@@ -52,17 +52,82 @@ This phase is an approval and design-specification activity only. It does not au
 
 The previous ledger wording “Carbon & Signal” was an incorrect assistant interpretation of H and is superseded by this clarification. The owner-selected H direction is the burgundy / wine-red and near-black CLARET palette in the uploaded reference, not teal/gray Carbon & Signal. This correction does not approve DA-02 or any exact hex token.
 
-## 3. Decision register
+
+## 3. DA-02 — Accent system
+
+**Status:** PENDING — owner selected option C for specification; explicit approval not yet given.  
+**Owner-selected proposal:** **C — Deep Burgundy**, adapted to the corrected DA-01 Claret / Burgundy & Near-Black direction.
+
+### 3.1 Proposed palette roles (provisional, not approved tokens)
+
+| Role | Candidate value | Intended use |
+|---|---|---|
+| Base / near-black | `#080607` | Main app background and deepest canvas |
+| Deep wine surface | `#26090E` | Elevated dark surfaces and grouped sections |
+| Burgundy surface / accent | `#4B1018` | Cards, selected surfaces, restrained brand emphasis |
+| Strong burgundy accent | `#791F2D` | Candidate primary-action / active accent, subject to contrast and state testing |
+| Warm ivory text | `#F1E8E1` | Candidate primary text on dark surfaces |
+| Muted secondary text | To be measured | Secondary labels; must meet applicable text contrast requirements |
+
+These are candidate values sampled from the selected conceptual palette, not a validated design-token set. Do not treat any value as final or implementation-ready before approval and contrast testing.
+
+### 3.2 Proposed usage rules
+
+1. H remains the primary Claret / Burgundy & Near-Black theme. DA-02 defines a restrained burgundy tonal hierarchy rather than introducing teal or another unrelated brand hue.
+2. Burgundy should be used as a surface and brand accent with controlled intensity; avoid large saturated red fields on every screen.
+3. Near-black remains the dominant background. Use stepped wine surfaces to distinguish cards, navigation, dialogs and selected regions.
+4. Warm ivory is the proposed primary text direction. Secondary, disabled and placeholder text require separate measured tokens.
+5. Focus indicators must remain clearly visible and must not rely only on a subtle burgundy shade; use a contrast-verified outline/treatment.
+6. Success, warning, danger, informational, focus and destructive states must have independent semantic tokens. Burgundy must not mean success, verification, trust, encryption or security.
+7. F — Obsidian & Emerald remains a separately selectable Settings theme under DA-01. DA-02's Deep Burgundy accent proposal applies to H and does not replace or merge F's emerald identity.
+8. Color alone must never communicate status; pair it with text, iconography, shape or other non-color cues.
+
+### 3.3 Consequences and trade-offs
+
+**Benefits**
+- Preserves the exact dark wine / burgundy character that motivated the owner's H selection.
+- Creates a coherent monochromatic tonal hierarchy with fewer competing hues.
+- Keeps H visually distinct from the optional Obsidian & Emerald theme.
+- Supports a premium editorial direction when paired with warm typography, spacing and restrained ornament.
+
+**Risks / costs**
+- Dark red surfaces can collapse into near-black at low brightness or on low-quality displays, reducing hierarchy.
+- Similar burgundy shades can be difficult to distinguish for users with color-vision deficiencies; state and selection cues need non-color differentiation.
+- Burgundy is unsuitable as the sole danger/success signal because its meaning is ambiguous.
+- Candidate primary-action burgundy may not meet text/icon contrast requirements; action controls may need ivory foreground, stronger tonal separation, border or shape treatment.
+- More dark-theme-specific contrast and component-state testing is required; light-theme behavior remains a separate DA-03 decision.
+
+### 3.4 Required verification before token approval
+
+- Calculate contrast for every text/background pair, including normal and large text.
+- Verify icons, controls, focus rings, selected states, disabled states, borders, overlays, sheets, dialogs and navigation.
+- Check OLED/low-brightness appearance and distinguishability between adjacent wine surfaces.
+- Check color-vision-deficiency simulations and ensure no status is color-only.
+- Produce paired H/F theme token matrices and confirm that semantic state colors remain consistent in meaning.
+- Do not claim WCAG 2.2 AA conformance until the actual complete component/state matrix is measured and reviewed.
+
+### 3.5 Decision record
+
+- Decision: DA-02 Accent system.
+- Owner selection: Option C — Deep Burgundy.
+- State: **PENDING**; selection authorizes preparation of this proposal only.
+- Explicit approval: **NOT RECEIVED**.
+- Exact tokens: provisional candidates only.
+- Implementation/prototype authorization: **NOT GRANTED**.
+
+
+## 4. Decision register
 
 | Decision | Status |
 |---|---|
 | DA-01 — Visual direction | **APPROVED** |
-| DA-02…DA-16 | PENDING |
+| DA-02 — Accent system | PENDING — option C selected for review; not approved |
+| DA-03…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
 
-## 4. Project invariants retained
+## 5. Project invariants retained
 
 - The current product scope remains a non-crypto MVP shell; no real messaging, calls, file transfer, push, recovery, or E2EE is claimed as implemented.
 - The mandatory bilingual non-crypto disclosure and fail-closed capability-state taxonomy remain in force.
@@ -72,11 +137,12 @@ The normative definitions, recommendations, and consequences for the remaining d
 - All 27 Red-Team scenarios remain **NOT_RUN**.
 - `main` is not modified. No pull request is created.
 
-## 5. Verification status
+## 6. Verification status
 
 - [x] Owner decision recorded in this ledger.
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
 - [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
+- [x] DA-02 option C recorded as a proposal only; no approval inferred.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
 - [ ] DA-02…DA-16 approvals.
