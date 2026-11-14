@@ -1,146 +1,170 @@
-# FLY SECRET — Red-Team Test Specification
+# FLY SECRET — Security Release Gates
 
-**Версия:** 1.0  
-**Тип:** проектная спецификация и план тестирования  
-**Исполнение:** все сценарии имеют начальный статус `NOT_RUN`; тесты не запускались.  
-**Реализация приложения:** не начиналась и не входит в задачу этого пакета.  
-**TOR MODE:** исключён из требований, архитектуры, UI, конфигурации и тестов.  
-**Децентрализация:** сохранена как отдельное будущее архитектурное направление; сейчас не реализуется.
+- Версия: 1.1 (Phase 0.1 review)
+- Базовая спецификация: Red-Team v1.0
+- Статус: требования и критерии допуска; тесты не выполнялись
+- Все 27 сценариев: `NOT_RUN`
+- TOR MODE: исключён
+- Децентрализация: future-only
+- Реализация приложения: не начиналась
 
-## Правила безопасного тестирования
+## Release policy
 
-1. Только изолированная лабораторная или staging-среда, принадлежащая проекту; synthetic accounts, synthetic data и тестовые ключи.
-2. Не атаковать production, реальные пользовательские аккаунты, сторонние системы или инфраструктуру третьих лиц.
-3. Destructive-тесты — только на disposable state с проверяемым восстановлением.
-4. Нагрузку ограничивать заранее заданными лимитами собственной лаборатории.
-5. Не помещать plaintext, private keys, recovery secrets, токены и персональные данные в отчёты; доказательства редактировать.
-6. `NOT_RUN`, `BLOCKED` и `N/A` не считаются `PASS`.
-7. Отсутствие найденной уязвимости не является доказательством её отсутствия.
+Решение по умолчанию до появления evidence — **NO-GO**. `PASS` требует фактического исполнения теста, commit/build hash и воспроизводимого evidence. `NOT_RUN` и `BLOCKED` не считаются PASS. `N/A` требует письменного обоснования и reviewer approval.
 
-## Статусы
-
-- `NOT_RUN` — сценарий описан, но не выполнялся.
-- `PASS` — выполнен, ожидаемый результат подтверждён доказательствами.
-- `FAIL` — критерий безопасности нарушен.
-- `BLOCKED` — выполнение невозможно из-за отсутствующей реализации, среды или зависимости.
-- `N/A` — неприменим; требуется письменное обоснование.
-
-## Серьёзность
-
-- **Critical:** компрометация plaintext, ключей, криптографической идентичности, доверенного устройства или цепочки выпуска.
-- **High:** существенная утечка приватности, нарушение авторизации, масштабная деградация доступности или контроля устройств.
-- **Medium:** ограниченное нарушение с существенными предпосылками или ограниченным охватом.
-- **Low:** ограниченный эффект без прямой компрометации ключей или сообщений.
-
-## Обязательные поля каждого сценария
-
-ID; активы; предпосылки; модель атакующего; безопасный воспроизводимый тест; ожидаемый результат; критерий провала; серьёзность; обнаружение; исправление; регрессионный тест; нормативный/технический маппинг; начальный статус `NOT_RUN`.
-
-# Security Release Gates
-
-## Политика выпуска
-
-`PASS` требует фактического исполнения теста и сохранённого evidence. `NOT_RUN` и `BLOCKED` не являются PASS. `N/A` требует обоснования. До появления evidence решение по умолчанию — **NO-GO**. Critical findings блокируют выпуск. High findings блокируют публичный выпуск, особенно в crypto/privacy/auth/recovery.
+- Critical findings всегда блокируют выпуск до исправления и регрессионной проверки.
+- High findings блокируют публичный выпуск в crypto, identity, recovery, privacy, file authorization, calls и supply chain.
+- Никакие marketing claims об абсолютной анонимности, невозможности скриншота или безусловном E2EE не допускаются без доказанной модели и независимого review.
 
 ## Gate 0 — Architecture and threat model
 
-- [ ] Data-flow diagrams для identity, messaging, files, calls, recovery, push и telemetry.
-- [ ] Trust boundaries и классификация данных.
-- [ ] Threat model утверждён.
-- [ ] TOR MODE отсутствует в требованиях, UI, конфигурации и тестовой матрице.
-- [ ] Decentralization выделена как будущий этап.
-- [ ] Crypto libraries/spec versions, лицензии, платформы и maintenance status проверены.
-- [ ] Нет самодельного протокола из самостоятельно скомбинированных примитивов.
-- [ ] Web threat model отделён от native mobile threat model.
+- [ ] Data-flow diagrams: identity, messaging, files, calls, recovery, push, telemetry.
+- [ ] Trust boundaries, assets, attacker capabilities и platform scope утверждены.
+- [ ] Crypto ADR содержит точную библиотеку/версию, лицензию, аудит, maintenance и платформенную поддержку.
+- [ ] Нет самодельного протокола из самостоятельно скомбинированных криптографических примитивов.
+- [ ] 1:1, group messaging, multi-device и recovery scope определены.
+- [ ] Web threat model отделён от native mobile.
+- [ ] TOR MODE отсутствует в requirements, architecture, UI, config, workflows и tests.
+- [ ] Децентрализация не включена в текущий release scope.
 
-## Gate 1 — Identity and cryptography
+Evidence: architecture decision records, diagrams, threat model approval, dependency review.
 
-- [ ] Registration proof-of-possession и replay protection.
-- [ ] Key-change detection и contact verification.
-- [ ] Key transparency split-view tests.
-- [ ] Ratchet replay/rollback/nonce/skipped-key tests.
-- [ ] Device linking, revocation и rekey tests.
-- [ ] Post-compromise recovery semantics документированы.
-- [ ] PQ claims соответствуют реально внедрённым и проверенным компонентам.
+## Gate 1 — Identity and device lifecycle
+
+- [ ] FLY ID отделён от identity key, device key, session key и transport identifiers.
+- [ ] Registration challenge одноразовый, с expiry и proof-of-possession.
+- [ ] Device linking требует явного trusted approval.
+- [ ] Device revocation, rotation и session invalidation определены.
+- [ ] Key transparency split-view и key-change flows проверяются.
+- [ ] Verified UI привязан к текущему fingerprint и сбрасывается при смене ключа.
+
+Required scenarios: ID-01…ID-04. All require executed evidence before release.
+
+## Gate 2 — Cryptography and messaging
+
+- [ ] Внедрена reviewed protocol implementation; точные версии зафиксированы.
+- [ ] Forward secrecy и post-compromise recovery описаны без чрезмерных обещаний.
+- [ ] Ratchet state persistence, crash consistency и rollback resistance проверены.
+- [ ] Skipped-key/resource limits ограничены.
 - [ ] Protocol negotiation защищён от downgrade.
+- [ ] Replay/reorder/duplicate/corrupt handling проверены.
+- [ ] PQ claims соответствуют фактически поддерживаемой и независимо проверенной реализации.
+- [ ] Group protocol (если включён) имеет отдельный обоснованный выбор; MLS не считается автоматической заменой 1:1 сессий.
 
-## Gate 2 — Privacy
+Required scenarios: CRYPTO-01…03, RELAY-01.
 
-- [ ] Field-level data inventory и retention policy.
-- [ ] Нет plaintext/recovery secret/private key в push, logs, analytics или crash reports.
+## Gate 3 — Recovery
+
+- [ ] Device Transfer, Recovery Kit и Identity Re-establishment — отдельные flows.
+- [ ] Сервер не хранит plaintext private keys/recovery secrets и не может расшифровать recovery backup.
+- [ ] Token replay/race и unauthorized linking проверены.
+- [ ] Потеря всех recovery materials объяснена пользователю как возможная необратимая потеря доступа.
+- [ ] Старые устройства/сессии отзываются согласно явной политике.
+
+Required scenarios: REC-01…03.
+
+## Gate 4 — Privacy and metadata
+
+- [ ] Data inventory, retention, deletion и access policies утверждены.
+- [ ] Push содержит только минимальный opaque wake-up signal.
+- [ ] Plaintext, private keys, recovery secrets и sensitive IDs отсутствуют в logs/analytics/crash reports.
 - [ ] Contact discovery прошёл privacy review.
-- [ ] Enumeration resistance проверена.
-- [ ] Call IP exposure документирован и совпадает с UX.
-- [ ] Metadata correlation измерена; residual risks опубликованы.
-- [ ] Third-party SDK review завершён.
-- [ ] Нет абсолютных обещаний анонимности без adversary model.
+- [ ] FLY ID enumeration resistance проверена.
+- [ ] Metadata correlation измерена; остаточные риски документированы.
+- [ ] IP/call metadata disclosures совпадают с UI и документацией.
+- [ ] Нет claims об абсолютной анонимности без adversary model.
 
-## Gate 3 — Local storage, recovery and files
+Required scenarios: PRIV-01…04, CALL-03, LOG-01.
 
-- [ ] Local DB и key management прошли review.
-- [ ] OS backup inclusion/exclusion проверена на каждой платформе.
-- [ ] Recovery не требует server-side plaintext escrow.
-- [ ] Recovery replay/race tests пройдены.
-- [ ] Object-level authorization проверена на каждом файловом endpoint.
-- [ ] File parser limits/fuzzing выполнены в lab.
-- [ ] EXIF/metadata behavior документирован и проверен.
-- [ ] Семантика удаления и остаточные копии объяснены пользователю.
+## Gate 5 — Local storage and file transfer
 
-## Gate 4 — Voice/video calls
+- [ ] Local DB, key storage, OS backup/restore и temporary files проверены для каждой платформы.
+- [ ] Object-level authorization применяется на каждом file endpoint.
+- [ ] EXIF/GPS handling документирован и протестирован.
+- [ ] File size/type/parser/time/resource limits заданы.
+- [ ] Download, preview, thumbnail, delete и share endpoints покрыты authorization tests.
+- [ ] Deletion semantics и остаточные копии объяснены пользователю.
 
-- [ ] Signalling authentication и replay protection.
-- [ ] E2EE media проверена отдельно; DTLS-SRTP само по себе не доказывает E2EE через SFU.
-- [ ] Key rotation и membership change проверены.
-- [ ] IP disclosure policy проверена.
-- [ ] SFU не имеет ключей расшифрования media.
-- [ ] Abuse/rate limits и resource limits определены.
+Required scenarios: FILE-01…03.
 
-## Gate 5 — Relay and delivery
+## Gate 6 — Voice/video calls
 
-- [ ] Drop/reorder/duplicate/corrupt/delay matrix пройдена.
-- [ ] Queue quotas и backpressure проверены.
-- [ ] Idempotency подтверждена.
-- [ ] Delivery semantics и receipts формализованы.
-- [ ] Tenant isolation проверена.
-- [ ] Monitoring и incident response готовы.
+- [ ] Signalling authenticated; replay/substitution защищены.
+- [ ] Application-level E2EE media доказана отдельно от DTLS-SRTP transport security.
+- [ ] SFU не имеет media decryption keys.
+- [ ] Media key rotation и membership changes проверены.
+- [ ] ICE/IP disclosure и STUN/TURN behavior проверены в собственной лаборатории.
+- [ ] Abuse/resource limits определены.
 
-## Gate 6 — Decentralization (только если она будет отдельно утверждена и введена)
+Required scenarios: CALL-01…03. Независимый media E2EE review обязателен.
 
-- [ ] Signed node identity и rotation.
-- [ ] Sybil/Eclipse simulations.
-- [ ] Operator diversity/collusion analysis.
-- [ ] Node revocation.
-- [ ] Multi-node delivery integrity.
-- [ ] Storage/resource abuse limits.
-- [ ] Независимый аудит архитектуры и governance.
+## Gate 7 — Relay and availability
 
-## Gate 7 — Supply chain and release
+- [ ] Drop/reorder/duplicate/corrupt/delay fault matrix пройдена.
+- [ ] Idempotency и delivery/receipt semantics определены.
+- [ ] Per-tenant queue quotas, backpressure и fair scheduling проверены.
+- [ ] Cross-tenant isolation подтверждена.
+- [ ] Monitoring, abuse response и incident procedures готовы.
 
-- [ ] SBOM сформирован и архивирован.
-- [ ] Dependencies pinned и reviewed.
-- [ ] Build provenance и artifact signatures проверяются.
-- [ ] CI secrets изолированы; permissions минимальны.
-- [ ] Release signing keys защищены контролируемым процессом.
-- [ ] Reproducible-build strategy оценена.
-- [ ] Critical/High dependency findings устранены или исключены из релиза.
-- [ ] Rollback и incident response отрепетированы.
+Required scenarios: RELAY-01…02.
 
-## Evidence requirements
+## Gate 8 — Supply chain, CI and Android release
 
-Для каждого теста сохранять ID, commit/build hash, версию приложения, OS/device, версии инструментов, конфигурацию лаборатории, шаги, sanitized logs/PCAP, результат, reviewer и дату. Не сохранять реальные пользовательские данные, секреты и private keys.
+- [ ] GitHub Actions workflows используют минимальные permissions.
+- [ ] Third-party Actions закреплены по immutable commit SHA.
+- [ ] Dependencies pinned/locked; dependency review и vulnerability policy включены.
+- [ ] SBOM формируется и архивируется.
+- [ ] Artifact provenance/checksum проверяются.
+- [ ] Signing keys/keystore не находятся в Git и не передаются через чат.
+- [ ] Production signing доступен только через protected environment/approval.
+- [ ] Feature branches не могут автоматически опубликовать production-signed APK.
+- [ ] APK/AAB artifacts привязаны к commit, workflow run и version.
+- [ ] Rollback и compromised signing key response документированы.
 
-## Независимые проверки перед публичным выпуском
+Required scenario: SUPPLY-01. Build pipeline security review required before first public APK.
 
-- Независимый cryptographic protocol review.
-- OWASP MASVS/MASTG mobile assessment.
-- Staging backend/API penetration test на собственных системах.
-- Privacy/metadata assessment.
-- Supply-chain/build pipeline review.
-- Отдельная проверка E2EE media.
-- Regression verification после исправлений.
+## Gate 9 — Future decentralization (not in current release)
 
-## Decision record
+Этот gate не является условием текущего MVP и не разрешает включать децентрализованную сеть. Он применяется только после отдельного product/security approval.
 
-Решение `GO / NO-GO / CONDITIONAL GO` включает версию/commit и артефакты; статусы тестов и evidence; открытые Critical/High findings; принятые риски, владельцев и сроки; независимые аудиты; incident response plan.
+- [ ] Node identity, key rotation/revocation и signed announcements.
+- [ ] Sybil resistance и operator diversity.
+- [ ] Eclipse/partition simulations.
+- [ ] Collusion and ownership concentration analysis.
+- [ ] Multi-node message integrity, storage and resource abuse limits.
+- [ ] Независимый аудит governance и operator independence.
 
-Пока evidence отсутствует, это план контроля, а не подтверждение безопасности продукта.
+Future scenarios: DEC-01…DEC-03. До отдельного решения остаются NOT_RUN и out of scope.
+
+## Gate 10 — Final release decision
+
+Release dossier must contain:
+- release tag, commit SHA, build/workflow run and artifact checksum;
+- full test matrix with statuses and links to sanitized evidence;
+- all open Critical/High findings, owner, remediation and retest;
+- protocol/library versions and independent review reports;
+- SBOM, provenance and signing approval;
+- privacy/data-retention statement and user-facing security limitations;
+- incident response, rollback and recovery plans;
+- named approvers and dated GO/NO-GO decision.
+
+### Decision rules
+
+| Finding/status | Public release decision |
+|---|---|
+| Any open Critical | NO-GO |
+| High in crypto/identity/recovery/privacy/auth/calls/supply chain | NO-GO |
+| NOT_RUN or BLOCKED for a mandatory gate | NO-GO |
+| N/A without written rationale | NO-GO |
+| Medium/Low | Formal risk acceptance, owner, deadline and mitigation |
+| All mandatory gates passed with evidence | Eligible for GO review; not automatic approval |
+
+## Current status
+
+No application code exists in this workstream and no security test has been executed. This document defines future release criteria; it does not certify the product.
+
+- Test scenarios: 27 × `NOT_RUN`
+- Architecture decision: CONDITIONAL NO-GO for implementation pending ADRs
+- TOR MODE: excluded
+- Decentralization: future-only
+- APK: future GitHub Actions artifact after Android implementation
