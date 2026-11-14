@@ -121,7 +121,7 @@ The owner has approved these values as the **preliminary DA-02 palette tokens**.
 
 ## 4. DA-03 — Theme behavior, appearance mode and preference persistence
 
-**Status:** PENDING — owner selected Option A for final consideration; explicit approval not received.  
+**Status:** APPROVED — owner explicitly approved Option A and all eight conditions listed in §4.9.  
 **Baseline source:** Phase 1.4.2 DA-03 recommends system default with light and dark; alternatives are light-only or dark-only.  
 **Current approved visual constraints:** H = Claret / Burgundy & Near-Black with DA-02 Deep Burgundy preliminary tokens; F = optional Obsidian & Emerald theme in Settings. DA-03 does not alter either approved palette.
 
@@ -286,9 +286,11 @@ Please explicitly approve or request changes to all of the following:
 - Decision: DA-03 Theme behavior.
 - Options presented: A, B, C.
 - Recommendation: **A — Adaptive system mode + independent H/F palette selection**.
-- State: **PENDING**; Option A selected as direction for final consideration only.
-- Product-owner approval: **NOT RECEIVED**.
-- Exact behavioral contract: documented in §4.9; all eight confirmation points remain pending.
+- State: **APPROVED** — Option A, with all eight conditions in §4.9 explicitly confirmed by the product owner.
+- Product-owner approval: **RECEIVED**.
+- Approved scope: both palettes H/F receive Light and Dark; defaults and fallback System + H; System follows device signal and manual Light/Dark overrides; H/F switch preserves appearance mode; preferences persist per installation; missing system signal falls back to Light while retaining System; resolve before first fully styled frame and apply lifecycle changes atomically; detailed H Light and F Light/Dark tokens require separate approval.
+- Detailed palette tokens and contrast verification remain separate future approval/verification work.
+- Implementation/prototype authorization: **NOT GRANTED**.
 - Implementation/prototype authorization: **NOT GRANTED**.
 
 
@@ -298,7 +300,7 @@ Please explicitly approve or request changes to all of the following:
 |---|---|
 | DA-01 — Visual direction | **APPROVED** |
 | DA-02 — Accent system | **APPROVED** — Deep Burgundy; preliminary tokens approved, contrast validation OPEN |
-| DA-03 — Theme behavior | PENDING — options A/B/C presented; no approval |
+| DA-03 — Theme behavior | **APPROVED** — Option A, all eight conditions explicitly confirmed; detailed palette tokens remain separate |
 | DA-04…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
@@ -320,7 +322,7 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
 - [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
 - [x] DA-02 — Deep Burgundy and preliminary tokens recorded as explicitly APPROVED.
-- [x] DA-03 — options A/B/C and recommendation recorded as proposal only; approval not inferred.
+- [x] DA-03 — Option A and all eight conditions explicitly approved; detailed palette tokens remain separately pending.
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
