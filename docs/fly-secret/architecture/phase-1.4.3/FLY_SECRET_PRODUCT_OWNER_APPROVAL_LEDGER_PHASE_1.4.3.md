@@ -294,6 +294,139 @@ The product owner explicitly approved all eight conditions below. This list is t
 - Implementation/prototype authorization: **NOT GRANTED**.
 
 
+
+## 4. DA-04 — Typography System
+
+**Status:** PENDING — options prepared; no owner approval received.  
+**Source of truth:** Phase 1.4.2 §6.5 “Typography” and §7 “Consolidated component contract”.  
+**Baseline recommendation in Phase 1.4.2:** Native system stacks. The baseline explicitly identifies a licensed brand typeface as the alternative. The exact scale and rules below are carried forward without alteration unless the owner separately approves a revision.
+
+### 4.1 Baseline typography specification (Phase 1.4.2)
+
+**Proposed system-native stacks**
+- Android: Roboto / system sans-serif.
+- iOS: SF Pro / system sans-serif.
+- Web: system UI stack with Cyrillic-compatible fallback.
+- Desktop: native system sans-serif.
+
+**Proposed type scale**
+
+| Token | Size / line height | Weight | Use |
+|---|---:|---|---|
+| display | 32 / 40 | Semibold | Onboarding hero, sparingly |
+| h1 | 28 / 36 | Semibold | Main screen title |
+| h2 | 22 / 30 | Semibold | Section title |
+| h3 | 18 / 26 | Semibold | Card or group title |
+| body.large | 17 / 25 | Regular | Introductory content |
+| body | 16 / 24 | Regular | Main reading text |
+| body.small | 14 / 20 | Regular | Supporting text |
+| label | 14 / 20 | Medium | Buttons and labels |
+| caption | 12 / 18 | Regular | Metadata only |
+| numeric | 14–16 / 20–24 | Medium, tabular | Counts and dates |
+
+**Mandatory typographic rules**
+- Do not use caption size for instructions, warnings or security disclosures.
+- Avoid long all-caps copy; use sentence case.
+- Do not rely on thin weights on dark backgrounds.
+- Respect user text scaling and browser zoom.
+- No critical identity or safety explanation may be silently truncated.
+
+The component contract additionally requires consistent semantics and accessibility across light/dark themes, mobile/desktop layouts and capability states.
+
+### 4.2 Option A — Native system typography (RECOMMENDED; Phase 1.4.2 baseline)
+
+Use the platform-native stacks and exact baseline scale in §4.1. Keep semantic tokens and roles consistent across platforms while allowing platform-native font rendering.
+
+**Benefits**
+- Best platform fit and familiar rendering.
+- Avoids bundling and distributing a brand font.
+- Reduces licensing, font-file, glyph-coverage and rendering maintenance.
+- Supports platform text scaling and localization naturally when implemented correctly.
+
+**Costs / risks**
+- Glyph metrics and visual character differ slightly between platforms; identical line wrapping is not guaranteed.
+- Must test Cyrillic fallback and mixed-script strings, especially Web.
+- Visual brand identity comes more from layout, weight and spacing than a distinctive typeface.
+- Cross-platform screenshot parity needs tolerance for native rendering differences.
+
+### 4.3 Option B — One bundled cross-platform type family
+
+Select one cross-platform family and bundle/use it consistently across Android, iOS, Desktop and Web, with system fallback for missing glyphs. The exact family, version, license and Cyrillic coverage would require a separate evidence review and owner approval; no font family is selected in this proposal.
+
+**Benefits**
+- More consistent letterforms, metrics and visual identity across platforms.
+- Easier to create a distinctive typographic signature.
+- Can reduce platform-specific line-wrap differences if the same font build and shaping behavior are used.
+
+**Costs / risks**
+- Font licensing and redistribution obligations must be checked.
+- Adds font assets, loading behavior, cache/storage and update/version management.
+- Incomplete Cyrillic or symbol coverage can create inconsistent fallback within a single string.
+- Font loading can cause layout shift or an incorrect first frame, especially on Web.
+- Must verify font scaling, accessibility settings, shaping, variable-font behavior and performance on low-end devices.
+
+### 4.4 Option C — Licensed brand typeface
+
+Adopt a licensed brand typeface as the primary display and/or interface family, with platform-native fallback for body text or unsupported glyphs. This is the explicit alternative identified in the Phase 1.4.2 decision register. No specific commercial family or license is proposed or selected here.
+
+**Benefits**
+- Strongest opportunity for a proprietary visual identity.
+- Can create a more recognizable brand voice in headings and onboarding.
+- A display-only use can limit impact on dense interface text.
+
+**Costs / risks**
+- Requires license review for app distribution, Web embedding, desktop redistribution, modification, and future use.
+- Adds cost and procurement/legal dependencies.
+- Requires a fallback and glyph-coverage strategy, especially for Cyrillic.
+- Mixed families can create inconsistent metrics and hierarchy.
+- More ongoing asset and QA work than native stacks.
+
+### 4.5 Comparison
+
+| Criterion | A — Native system | B — Bundled cross-platform | C — Licensed brand |
+|---|---|---|---|
+| Platform-native feel | Highest | Medium | Medium |
+| Cross-platform visual consistency | Medium | Highest | Medium–High with fallback |
+| Distinctive brand typography | Lower | Medium–High | Highest |
+| Licensing/procurement burden | Lowest | Depends on selected family | Highest |
+| Bundled font assets | No, except fallback assets if required | Yes | Usually |
+| Cyrillic review | Required | Required | Required |
+| Rendering / loading QA | Platform-specific | Cross-platform + loading | Cross-platform + fallback |
+| Phase 1.4.2 alignment | Direct baseline | New alternative | Explicit baseline alternative |
+
+### 4.6 Recommended decision boundaries
+
+If Option A is selected, approve the baseline font stacks, type scale and typographic rules in §4.1 as the DA-04 contract. No font asset, third-party typeface or license procurement is required by this choice.
+
+If Option B or C is selected, DA-04 should approve only the direction to evaluate a family, not an unnamed font as implementation-ready. A separate proposal must identify exact family, release/version, license, embedding/redistribution rights, Cyrillic glyph coverage, fallback chain, font weights/files, loading strategy and measurable rendering tests before approval.
+
+The type scale may be retained unchanged under all three options unless the owner explicitly requests changes. No silent size/weight changes are implied by selecting a different font family.
+
+### 4.7 Verification and acceptance criteria (not yet executed)
+
+- Verify all specified tokens and line heights on Android, iOS, Desktop and Web.
+- Verify Cyrillic, Latin, mixed-script, numerals, punctuation and supported symbols; no missing-glyph boxes.
+- Verify dynamic text scaling and browser zoom without clipping, overlap or loss of action labels.
+- Verify long names, FLY ID-like strings, dates, counts and multiline safety disclosures.
+- Verify no critical identity or safety explanation is truncated; caption remains metadata-only.
+- Verify no thin weights are used for essential text on dark H/F surfaces.
+- Verify button labels, field labels, error/help text, badges and dialogs remain readable at supported scales.
+- Verify line wrapping and layout at the project's responsive breakpoints; allow native glyph-metric differences for Option A.
+- If fonts are bundled, verify font loading before first fully styled frame, cache behavior, fallback during loading, asset integrity and offline launch.
+- Contrast is a separate color/accessibility verification gate and is not passed by typography approval.
+- No accessibility conformance claim is made until the relevant platform tests are executed.
+
+### 4.8 Decision record
+
+- Decision: DA-04 Typography System.
+- Source baseline: Phase 1.4.2 §6.5 and §7.
+- Options: A — Native system typography; B — one bundled cross-platform family; C — licensed brand typeface.
+- Recommendation: **A — Native system typography**, preserving the exact Phase 1.4.2 stacks, scale and rules.
+- State: **PENDING**; no option approved.
+- Product-owner approval: **NOT RECEIVED**.
+- Implementation/prototype authorization: **NOT GRANTED**.
+
+
 ## 5. Decision register
 
 | Decision | Status |
@@ -301,7 +434,8 @@ The product owner explicitly approved all eight conditions below. This list is t
 | DA-01 — Visual direction | **APPROVED** |
 | DA-02 — Accent system | **APPROVED** — Deep Burgundy; preliminary tokens approved, contrast validation OPEN |
 | DA-03 — Theme behavior | **APPROVED** — Option A, all eight conditions explicitly confirmed; detailed palette tokens remain separate |
-| DA-04…DA-16 | PENDING |
+| DA-04 — Typography System | PENDING — options A/B/C prepared; recommendation A; no approval |
+| DA-05…DA-16 | PENDING |
 | RA-01…RA-16 | PENDING |
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
@@ -323,6 +457,7 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [x] Red-Team test-case inventory compared with the Phase 1.4.2 baseline: 27 unique scenario IDs; all 27 initial statuses remain `NOT_RUN`.
 - [x] DA-02 — Deep Burgundy and preliminary tokens recorded as explicitly APPROVED.
 - [x] DA-03 — Option A and all eight conditions explicitly approved; detailed palette tokens remain separately pending.
+- [x] DA-04 — source-derived typography baseline and options A/B/C recorded as proposals; approval not inferred.
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
