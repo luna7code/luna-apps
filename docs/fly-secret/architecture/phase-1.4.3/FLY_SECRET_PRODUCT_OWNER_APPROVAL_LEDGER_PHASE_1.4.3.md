@@ -208,9 +208,9 @@ The appearance mode and palette family should be separate settings, not a single
 - No cloud synchronization is included in this proposal.
 
 
-### 4.9 Final-consideration specification — Option A (owner-selected direction; NOT APPROVED)
+### 4.9 Approved behavioral specification — Option A
 
-The owner selected Option A as the direction for final consideration. This is not approval. The following exact behavioral contract is proposed for sign-off.
+**APPROVED:** The product owner explicitly approved Option A and all eight conditions in this section. The following is the approved behavioral contract; detailed H Light and F Light/Dark color tokens remain separate future approvals.
 
 **A. Independent settings**
 - `appearanceMode` accepts exactly `system`, `light`, `dark`.
@@ -223,7 +223,7 @@ The owner selected Option A as the direction for final consideration. This is no
 - If `appearanceMode=system`, resolve Light or Dark from the platform appearance signal.
 - If `appearanceMode=light` or `dark`, ignore subsequent OS appearance changes until the user selects System.
 - When the user changes from manual Light/Dark to System, immediately re-resolve from the current platform signal.
-- If the platform does not expose a usable appearance signal, use Light as the documented fallback while keeping the stored mode as `system`; the Settings UI must explain that system appearance is unavailable on that platform. This fallback requires owner confirmation as part of DA-03.
+- If the platform does not expose a usable appearance signal, use Light as the documented fallback while keeping the stored mode as `system`; the Settings UI must explain that system appearance is unavailable on that platform. This fallback is explicitly approved as part of DA-03.
 - The app must not silently convert a manual override into System or silently change the selected palette.
 
 **C. Palette switching**
