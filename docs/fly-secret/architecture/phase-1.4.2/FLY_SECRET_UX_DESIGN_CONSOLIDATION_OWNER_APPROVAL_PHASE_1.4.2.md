@@ -277,9 +277,9 @@ Rules:
 
 ## 4.3 Route inventory
 
-The Phase 1.2 route identifiers remain the planning baseline, with the corrections in this document applied to the named routes.
+The stable route inventory from Phase 1.2 is preserved. This table combines route-family identifiers with screen-specification IDs for readability. Identifiers such as ONB-01, CHAT-01, CALL-01, CONTACT-01 and SET-01 are screen-specification references, not new router paths or additional stable route IDs. The underlying route families remain APP-ROOT, TAB-CHATS, CHAT-DETAIL-DEMO, TAB-CALLS, CALL-DETAIL-DISABLED, TAB-CONTACTS, CONTACT-LOCAL-DETAIL, TAB-SETTINGS, SETTINGS-PROFILE, SETTINGS-DEVICES, SETTINGS-PRIVACY, SETTINGS-SECURITY, SETTINGS-NOTIFICATIONS, SETTINGS-APPEARANCE, SETTINGS-LANGUAGE, SETTINGS-ABOUT and ONBOARDING-*.
 
-| Route ID | Consolidated route meaning | Current capability posture |
+| Route family / screen reference | Consolidated route meaning | Current capability posture |
 |---|---|---|
 | APP-ROOT | Application shell and persistent disclosure | Specification only |
 | ONB-01 | Welcome | Specification only |
@@ -357,6 +357,17 @@ Mapping:
 | DISABLED | Explanatory surface without active operation | UNAVAILABLE or DEFERRED according to reason |
 | DEFERRED_SECURITY_GATE | Blocked on named security/architecture decision | DEFERRED |
 | NOT_IN_SCOPE | Excluded from current scope | Omit from UI unless an explanation is necessary; never imply availability |
+
+Additional Phase 1.2 state models are domain-specific and do not override the UI capability taxonomy:
+
+| Legacy Phase 1.2 model | Consolidated interpretation | Current UI rule |
+|---|---|---|
+| AVAILABLE_LOCAL | A local implementation candidate, not proof of a verified local-only data flow | Do not display AVAILABLE or LOCAL_ONLY without implementation and evidence; otherwise UNAVAILABLE or DEFERRED |
+| OFFLINE / ONLINE / DEGRADED / UNKNOWN | Network reachability or service state | No generic shell badge; show only a named, source-backed signal under Section 9.2 |
+| NO_LOCAL_PROFILE / LOCAL_PROFILE_PRESENT | Local profile lifecycle | Internal domain state only; never imply identity verification or account enrollment |
+| SYNTHETIC_FLY_ID | Synthetic identifier fixture | DEMO only if a clearly fictional example is explicitly approved; default is to omit |
+| LOCAL_FLY_ID | Previously proposed local identifier state | Removed from the current shell; no production ID generation or display |
+| LOCAL_RECORD / DEMO_RECORD / REMOVED_LOCAL | Local record origin/removal lifecycle | Record provenance only; never map to trusted, paired, active or revoked device states |
 
 This mapping is deliberate: the same string “LOCAL_ONLY” has different meanings in legacy planning metadata and the runtime capability state. Do not interchange those meanings.
 
