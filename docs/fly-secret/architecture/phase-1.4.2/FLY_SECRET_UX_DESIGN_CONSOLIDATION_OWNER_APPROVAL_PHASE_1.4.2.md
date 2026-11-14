@@ -841,6 +841,57 @@ Required contents:
 - Support links only when an official destination exists.
 - No fabricated security certification or audit claim.
 
+## 8.6 Canonical screen labels and bilingual copy catalogue
+
+The following wording is the consolidated copy baseline. It is normative for semantic accuracy but remains subject to product-owner approval. Translation review may improve naturalness but must not weaken the security meaning.
+
+| Context | English | Russian |
+|---|---|---|
+| Primary navigation | Chats | Чаты |
+| Primary navigation | Calls | Звонки |
+| Primary navigation | Contacts | Контакты |
+| Primary navigation | Settings | Настройки |
+| Settings section | Profile | Профиль |
+| Settings section | Local app installations | Локальные установки приложения |
+| Settings section | Privacy Center | Центр конфиденциальности |
+| Settings section | Security capabilities | Возможности безопасности |
+| Settings section | Notifications | Уведомления |
+| Settings section | Appearance and accessibility | Внешний вид и доступность |
+| Settings section | Language | Язык |
+| Settings section | About | О приложении |
+| Onboarding action | Continue | Продолжить |
+| Onboarding choice | Set up local preferences | Настроить приложение |
+| Onboarding choice | Quick preview | Быстрый просмотр |
+| Empty Chats state | Private messaging is not available in this build. | Приватные сообщения недоступны в этой сборке. |
+| Unavailable Calls state | Voice and video calls are not available in this build. | Голосовые и видеозвонки недоступны в этой сборке. |
+| Demo provenance | Demo content. Synthetic data only. | Демонстрационный режим. Только искусственные данные. |
+| Local contact explanation | This creates a local contact note on this device. It does not find or verify an account. | Это создаёт локальную запись контакта на устройстве. Поиск и проверка аккаунта не выполняются. |
+| Local app installation records | These are local app records. They do not prove device identity or trust. | Это локальные записи приложения. Они не подтверждают личность устройства или доверие к нему. |
+| Security capabilities | Security capabilities are not active in this build. This page describes product scope, not security status. | Функции безопасности не активны в этой сборке. Эта страница описывает состав продукта, а не состояние защиты. |
+| Unavailable | Not available in this build. | Недоступно в этой сборке. |
+| Deferred | Deferred pending architecture and security approval. | Отложено до архитектурного и security-согласования. |
+| Unknown status | Status unavailable. | Статус недоступен. |
+| Locality unverified | Designed for local storage; behavior not yet verified. | Предусмотрено локальное хранение; поведение ещё не проверено. |
+| Local removal | Remove local record. This does not revoke remote access. | Удалить локальную запись. Это не отзывает удалённый доступ. |
+| Demo verification example | Illustrative example — not a real verification. | Иллюстративный пример — не настоящая проверка. |
+| Disabled call action reason | Voice calls are not available in this build. | Голосовые звонки недоступны в этой сборке. |
+| Disabled identity action reason | Identity verification has not been implemented. | Проверка личности ещё не реализована. |
+| Deferred action reason | This action is deferred pending security review. | Это действие отложено до завершения проверки безопасности. |
+
+Capability status labels:
+
+| State | English | Russian |
+|---|---|---|
+| AVAILABLE | Available | Доступно |
+| LOCAL_ONLY | Stored locally | Хранится локально |
+| DEMO | Demo | Демонстрация |
+| UNAVAILABLE | Not available in this build | Недоступно в этой сборке |
+| DEFERRED | Deferred | Отложено |
+| DISABLED_BY_USER | Off | Выключено |
+| Unknown | Status unavailable | Статус недоступен |
+
+Mandatory non-crypto notice remains the complete text in Section 2.2; it must not be replaced with the shorter historical Phase 1.4.1 copy in this table. The complete wording must not be shortened in onboarding or the persistent app-shell notice.
+
 ---
 
 # 9. Demo provenance and network semantics
