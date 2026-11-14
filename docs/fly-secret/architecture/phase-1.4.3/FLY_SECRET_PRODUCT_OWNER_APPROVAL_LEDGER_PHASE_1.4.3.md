@@ -1,7 +1,7 @@
 # FLY SECRET — Phase 1.4.3
 ## Product Owner Design Approval Ledger
 
-**Status:** IN PROGRESS — DA-01…DA-05 APPROVED; DA-06…DA-16 and RA-01…RA-16 PENDING  
+**Status:** IN PROGRESS — DA-01…DA-07 APPROVED; DA-08…DA-16 and RA-01…RA-16 PENDING  
 **Repository:** luna7code/luna-apps  
 **Base document:** `docs/fly-secret/architecture/phase-1.4.2/FLY_SECRET_UX_DESIGN_CONSOLIDATION_OWNER_APPROVAL_PHASE_1.4.2.md`  
 **Base commit:** `9316b33c3eced91ef08b48b719d53953dbc44d26`  
@@ -543,7 +543,95 @@ All checks remain **NOT_RUN**. No runtime, browser, Playwright, accessibility or
 **Explicit owner confirmation:** “Подтверждаю весь пакет DA-06 Option A в изложенной редакции: все 12 условий, последствия и ограничения, включая адаптивный выбор нижней панели или rail на 600–839 px. Это утверждение только спецификации. Реализацию, прототип, изменения кода, deployment и QA НЕ разрешаю.”
 
 
-## 7. Decision register
+## 7. DA-07 — Accessibility target
+
+**Status:** APPROVED — Option A explicitly confirmed by the product owner.  
+**Source of truth:** Phase 1.4.2 §11.1–§11.4, §13 DA-07, §16 platform adaptation requirements, and UX-SEC-10 accessibility acceptance matrix.  
+**Owner decision:** Option A — WCAG 2.2 AA for Web, with equivalent native accessibility outcomes for Android and iOS; Desktop must meet equivalent keyboard, screen-reader, scaling and focus outcomes where applicable.  
+**Approval boundary:** Specification only. Application implementation, prototype creation or modification, code changes, deployment and QA are NOT authorized.
+
+### 7.1 Approved accessibility target
+
+1. **Web:** WCAG 2.2 Level AA is the target.
+2. **Android:** Equivalent native accessibility outcomes using applicable platform guidance and assistive technologies.
+3. **iOS:** Equivalent native accessibility outcomes using applicable platform guidance and assistive technologies.
+4. **Desktop:** Keyboard navigation, screen-reader, scaling and focus outcomes equivalent to the Web target where applicable.
+5. The target is to be evaluated through a component × state × platform acceptance matrix.
+6. This decision does not claim that any platform currently conforms and does not claim an accessibility audit has been performed.
+
+### 7.2 Approved acceptance criteria
+
+| Dimension | Required acceptance |
+|---|---|
+| Contrast | Complete foreground/background/state matrix for both themes; WCAG 2.2 AA text and non-text criteria |
+| Keyboard | Every action reachable; logical order; no keyboard trap |
+| Focus | Visible focus indicator; focus order follows reading order; restoration after dialog |
+| Screen readers | Correct roles, names, values, headings, state and status announcements |
+| Text scaling | Reflow at 200% without clipped or hidden content |
+| Browser zoom | Reflow at 200%; no loss of critical controls |
+| Touch targets | At least 44 × 44 CSS px/pt design target; Android aim 48 dp where practical |
+| Motion | Reduced-motion preference respected; no status communicated only by animation |
+| Errors | Field association, summary where needed, specific correction guidance |
+| Dynamic status | Announced when meaningful; no repeated noisy announcements |
+| Localization | RU/EN text expansion, pronunciation, punctuation and truncation checked |
+| Disabled actions | Reason adjacent and programmatically associated |
+| Dialogs | Focus containment and restoration; clear title and action consequence |
+| Demo provenance | Visible and announced once per route entry |
+| Non-crypto disclosure | Readable, persistent and announced in onboarding |
+
+### 7.3 High-risk screens requiring full accessibility test cases
+
+- Onboarding and non-crypto disclosure.
+- Chats empty/demo states.
+- Calls unavailable state.
+- Contact creation and local contact detail.
+- Security capabilities.
+- Local app installations.
+- Privacy/reset dialogs.
+- All error and unknown-status states.
+
+### 7.4 Consequences and limitations accepted
+
+**Benefits**
+- Establishes a clear, externally defined target for Web accessibility.
+- Provides comparable accessibility outcomes across Web, Android, iOS and Desktop without asserting identical platform implementation.
+- Preserves a verifiable acceptance structure for components, states and high-risk screens.
+- Provides a consistent basis for later accessibility design and testing.
+
+**Costs and limitations**
+- Requires a component × state × platform matrix and platform-specific test procedures.
+- Increases design, implementation and verification work across multiple input methods and assistive technologies.
+- Native equivalence requires explicit platform mapping; WCAG Web criteria cannot simply be treated as identical native APIs.
+- Color-pair calculations alone are insufficient; rendered components and all relevant states require verification.
+- No conformance statement may be made before the relevant tests are actually executed and evidence reviewed.
+
+**Scope exclusions**
+- DA-07 does not select WCAG AAA as the product-wide target.
+- It does not certify current screens, themes, tokens or components.
+- It does not close UX-SEC-10 or any accessibility/security gate.
+- It does not authorize implementation, prototype creation or modification, code changes, deployment, browser/device testing, accessibility audit or QA execution.
+- It does not approve additional conditions beyond Option A and the criteria, scenarios, consequences and limitations recorded here.
+
+### 7.5 Verification plan — NOT RUN
+
+If implementation and QA are separately authorized, prepare and execute the component × state × platform matrix; verify all criteria in §7.2 and high-risk screens in §7.3; record platform, OS/browser, assistive technology, test procedure, result and evidence for each applicable check. Include complete rendered contrast verification for both themes and all relevant states.
+
+All accessibility, assistive-technology, browser, Android, iOS, Desktop, visual and contrast-matrix checks remain **NOT_RUN**. The preliminary contrast calculations in Phase 1.4.2 are not rendered conformance evidence.
+
+### 7.6 Approval record
+
+- Decision: DA-07 — Accessibility target.
+- Selected option: **A — WCAG 2.2 AA for Web + equivalent native accessibility outcomes for Android, iOS and Desktop as applicable**.
+- Product-owner approval: **RECEIVED** — explicit confirmation of the complete Option A specification, all listed criteria, high-risk scenarios, consequences and limitations; no additional conditions.
+- Decision state: **APPROVED**.
+- Approval scope: specification only.
+- Implementation/prototype/code/deployment/QA authorization: **NOT GRANTED**.
+- Accessibility verification: **NOT_RUN**.
+- UX-SEC-10: **SPECIFIED; execution NOT_RUN**; no finding is IMPLEMENTED, VERIFIED or CLOSED by this decision.
+
+**Explicit owner confirmation:** “Подтверждаю DA-07 Option A в итоговой редакции: WCAG 2.2 AA для Web и эквивалентные нативные результаты для Android, iOS и Desktop; все перечисленные критерии, сценарии, последствия и ограничения. Это утверждение только спецификации. Реализацию, прототип, deployment и QA НЕ разрешаю.”
+
+## 8. Decision register
 
 | Decision | Status |
 |---|---|
@@ -558,7 +646,7 @@ All checks remain **NOT_RUN**. No runtime, browser, Playwright, accessibility or
 
 The normative definitions, recommendations, and consequences for the remaining decisions stay in the Phase 1.4.2 baseline document. This ledger does not silently change those definitions.
 
-## 8. Project invariants retained
+## 9. Project invariants retained
 
 - The current product scope remains a non-crypto MVP shell; no real messaging, calls, file transfer, push, recovery, or E2EE is claimed as implemented.
 - The mandatory bilingual non-crypto disclosure and fail-closed capability-state taxonomy remain in force.
@@ -568,7 +656,7 @@ The normative definitions, recommendations, and consequences for the remaining d
 - All 27 Red-Team scenarios remain **NOT_RUN**.
 - `main` is not modified. No pull request is created.
 
-## 9. Verification status
+## 10. Verification status
 
 - [x] Owner decision recorded in this ledger.
 - [x] MagicPath Phase 1.4.3 decision board updated with DA-01 outcome and DA-02 as the next decision.
@@ -581,6 +669,6 @@ The normative definitions, recommendations, and consequences for the remaining d
 - [ ] Contrast verification for all text, icon, control, focus, selected, disabled, overlay, dialog and navigation states remains OPEN.
 - [x] GitHub fetch-back verification of this ledger (content and blob SHA confirmed).
 - [x] Branch comparison against `main`: 21 commits ahead, 0 behind; all 21 files are additions, with no deletions. `main` remains unchanged.
-- [ ] DA-07…DA-16 approvals.
+- [ ] DA-08…DA-16 approvals.
 - [ ] RA-01…RA-16 approvals.
 - [ ] Any implementation, prototype, or product QA — not authorized in this phase.
