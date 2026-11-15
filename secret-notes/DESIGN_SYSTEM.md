@@ -1,77 +1,64 @@
-# SECRET NOTES — Plum Shadow Design System
+# SECRET NOTES — Dark Retro Synthwave Design System
 
-Status: **approved**. This is the canonical color system for the Android application.
+Status: **approved direction**. Dark Retro Synthwave replaces Plum Shadow as the active Android visual theme.
 
 ## Design intent
 
-Plum Shadow is a restrained premium palette: near-black plum foundations, quiet plum-tinted cards, warm high-contrast text, and a muted lilac-plum accent. It avoids neon saturation and generic electric purple. Dark mode is the default; light mode is fully specified and available through the same semantic token set.
+A restrained retro-futurist night aesthetic: near-black violet foundations, layered plum-purple surfaces, neon magenta as the primary action accent, electric cyan for secondary/focus states, and pale lavender-white typography. Use glow sparingly. The app remains a privacy-first notebook, not an arcade UI.
 
-## Android Compose entry point
+## Android Compose
 
 - Package: `com.luna.secretnotes.ui.theme`
-- Theme: `SecretNotesTheme(darkTheme = true) { ... }`
-- Tokens and Material 3 schemes: `PlumShadow`
-- Default mode: dark.
+- Theme: `SecretNotesTheme { ... }`
+- Tokens: `RetroSynthwave`
+- Default and only shipped scheme in this iteration: dark.
+- Material 3 primary: neon pink; secondary: electric cyan; tertiary: soft violet.
 
-## Semantic tokens
+## Color tokens
 
-| Role | Dark | Light |
-|---|---:|---:|
-| Background | `#100D12` | `#FAF7FB` |
-| Surface | `#19141D` | `#FFFBFF` |
-| Elevated surface | `#211A26` | `#F7F0F8` |
-| Card | `#261D2B` | `#F2EAF5` |
-| Pressed card | `#302438` | `#E9DDEC` |
-| Primary text | `#F7F1F8` | `#211825` |
-| Secondary text | `#C8BACD` | `#514657` |
-| Muted text | `#9D8FA3` | `#6D6072` |
-| Border | `#514456` | `#817487` |
-| Subtle border | `#392F3D` | `#D8CBDC` |
-| Accent | `#D6A8E2` | `#70427C` |
-| On accent | `#2B1731` | `#FFFFFF` |
-| Accent container | `#4A3152` | `#F2DDF7` |
-| On accent container | `#F5DDF9` | `#2B1233` |
-| Error | `#FFB4AB` | `#BA1A1A` |
-| Error container | `#93000A` | `#FFDAD6` |
-| Success | `#A6D7B5` | `#216A43` |
-| Success container | `#1D3A2B` | `#D2F0DC` |
-
-## Verified text contrast pairs
-
-WCAG relative-luminance calculations for the following intended pairings:
-
-| Pair | Contrast |
+| Role | Hex |
 |---|---:|
-| Dark primary text / background | 17.36:1 |
-| Dark secondary text / surface | 9.80:1 |
-| Dark muted text / surface | 5.95:1 |
-| Dark accent / background | 9.70:1 |
-| Light primary text / background | 16.17:1 |
-| Light secondary text / surface | 8.67:1 |
-| Light muted text / surface | 5.75:1 |
-| Light accent / background | 7.16:1 |
-| White text / light accent button | 7.61:1 |
+| Background | `#090611` |
+| Surface | `#120D1E` |
+| Elevated surface | `#1B1230` |
+| Card | `#211538` |
+| Pressed card | `#2D1B48` |
+| Primary text | `#F8F4FF` |
+| Secondary text | `#C9BEDF` |
+| Muted text | `#A99BBF` |
+| Border | `#624A7E` |
+| Subtle border | `#38284B` |
+| Focus ring / cyan | `#47E8FF` |
+| Primary neon pink | `#FF4FD8` |
+| Pressed pink | `#E63BBF` |
+| On pink | `#24091F` |
+| Pink container | `#4A1643` |
+| On pink container | `#FFD7F6` |
+| Neon violet | `#B68CFF` |
+| Error | `#FF6B8A` |
+| Error container | `#5C1428` |
+| Success | `#65F0B4` |
+| Success container | `#124431` |
 
-These ratios apply only to the exact foreground/background pairs listed. Recalculate for other combinations, transparency, overlays, disabled states, and images.
+## Visual rules
 
-## Usage rules
+1. Keep 85–90% of the interface in dark neutral/plum surfaces. Neon is an accent, not a background.
+2. Use pink for primary CTAs, selected navigation, and key active states.
+3. Use cyan for focus rings, secondary actions, links, and subtle technical indicators. Do not use cyan and pink at equal visual weight in the same component.
+4. Use violet for restrained depth and decorative details only.
+5. Cards use the explicit `RetroSynthwave.Card` token; avoid default gray Material cards.
+6. Glow should be localized to focused controls, selected tabs, or a small logo detail. Never apply large blurred neon glows behind body text.
+7. Do not use gradients behind long text, notes, or editor surfaces.
+8. Error and success states must include labels/icons; never rely on color alone.
+9. Preserve strong contrast and calm reading surfaces. The editor should be less saturated than navigation and action chrome.
 
-1. Use `background` only for the app canvas and large page backgrounds.
-2. Use `surface` for primary panels; `surfaceVariant` for secondary/elevated regions.
-3. Use `PlumShadow.DarkCard` / `LightCard` for note cards. Do not approximate cards with arbitrary gray.
-4. Primary text must use `onSurface` or `onBackground`; secondary text uses `onSurfaceVariant`.
-5. Use the accent for primary actions, selected states, links, and focus indicators — not for large decorative fills.
-6. Error and success colors are semantic. Never communicate status through color alone; pair with an icon or text.
-7. Borders should be subtle. Use the stronger border for focused/selected controls.
-8. Do not introduce blue, neon gradients, or unrelated accent colors.
+## Accessibility
 
-## Accessibility requirements
-
-- Normal text: WCAG 2.2 AA minimum 4.5:1 against its actual surface.
-- Large text and essential UI boundaries: minimum 3:1.
-- Recheck contrast whenever a token is used on a surface other than its paired semantic background.
-- Status text must remain legible in both modes.
+- Normal text must reach WCAG 2.2 AA 4.5:1 against the exact surface.
+- Large text and essential UI boundaries must reach at least 3:1.
+- The palette tokens are not a blanket contrast guarantee: verify each foreground/background pairing when building components, especially neon text on purple surfaces and muted text on cards.
+- Focus indicators must remain visible without glow effects.
 
 ## Scope
 
-This file defines color tokens and their usage. It does not claim that all screens, note editor states, accessibility checks, or the complete application UI are implemented.
+This is the approved color design system and Compose theme foundation. It is not a claim that all app screens, components, editor states, or visual QA have been completed.
