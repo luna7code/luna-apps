@@ -3,6 +3,9 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 react {
+    // Produce a self-contained JS bundle for the debug APK. The APK must
+    // launch when installed directly, without a Metro development server.
+    debuggableVariants = []
     autolinkLibrariesWithApp()
 }
 
@@ -17,12 +20,16 @@ android {
         applicationId "com.flysecret"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.1.0"
+        versionCode 2
+        versionName "0.1.1"
     }
 
     buildTypes {
-        debug { }
+        // Keep the debug variant name and debug signing, but disable the
+        // Metro/dev-support dependency so this APK is independently launchable.
+        debug {
+            debuggable false
+        }
         release {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
