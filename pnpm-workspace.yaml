@@ -1,8 +1,0 @@
-packages:
-  - "apps/fly-secret/*"
-  - "packages/*"
-  - "security/*"
-  - "backend/*"
-
-autoInstallPeers: false
-strictPeerDependencies: true
