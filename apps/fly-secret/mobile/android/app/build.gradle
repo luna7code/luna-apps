@@ -1,0 +1,47 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+react {
+    // Produce a self-contained JS bundle for the debug APK. The APK must
+    // launch when installed directly, without a Metro development server.
+    debuggableVariants = []
+    autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = true
+def jscFlavor = "io.github.react-native-community:jsc-android:2026004.+"
+
+android {
+    namespace "com.flysecret"
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.flysecret"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 2
+        versionName "0.1.1"
+    }
+
+    buildTypes {
+        // Keep the debug variant name and debug signing, but disable the
+        // Metro/dev-support dependency so this APK is independently launchable.
+        debug {
+            debuggable false
+        }
+        release {
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
