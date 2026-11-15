@@ -31,8 +31,10 @@ class VaultKeyProtector(
         } finally {
             derived.fill(0)
         }
-        require(wrappingKey.size == DATA_KEY_BYTES) { "Keystore MAC must produce a 256-bit key" }
         val cipherText = try {
+            require(wrappingKey.size == DATA_KEY_BYTES) {
+                "Keystore MAC must produce a 256-bit key"
+            }
             cipher(Cipher.ENCRYPT_MODE, wrappingKey, nonce).doFinal(dataKey)
         } finally {
             wrappingKey.fill(0)
@@ -58,12 +60,14 @@ class VaultKeyProtector(
         require(record.nonce.size == GCM_NONCE_BYTES)
         val derived = kdf.derive(password, record.salt)
         val wrappingKey = try {
-            deviceMac.authenticate(DOMAIN_SEPARATOR + derived)
+            deviceMac.authenticateExisting(DOMAIN_SEPARATOR + derived)
         } finally {
             derived.fill(0)
         }
-        require(wrappingKey.size == DATA_KEY_BYTES) { "Keystore MAC must produce a 256-bit key" }
         return try {
+            require(wrappingKey.size == DATA_KEY_BYTES) {
+                "Keystore MAC must produce a 256-bit key"
+            }
             cipher(Cipher.DECRYPT_MODE, wrappingKey, record.nonce).doFinal(record.wrappedDataKey)
         } finally {
             wrappingKey.fill(0)

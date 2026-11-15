@@ -1,13 +1,14 @@
 # SECRET NOTES — Security Foundation
 
-Status: implementation foundation added; device validation and full storage integration remain open.
+Status: PIN/password gate and local key-management foundation implemented; full encrypted note/file storage and device validation remain open.
 
 ## Credential policy
 
 - Unlock method: numeric PIN or alphanumeric password; no biometrics.
 - Default enrollment minimums: 8 decimal digits for numeric PIN; 10 letters/digits for alphanumeric password. These are implementation defaults and can be revised before release.
-- Credentials are accepted as `CharArray` and cleared best-effort after operations. JVM memory zeroization cannot guarantee removal of all copies.
+- Credentials are accepted as `CharArray` by the security layer and cleared best-effort after operations. Compose text input temporarily uses immutable strings; JVM memory zeroization cannot guarantee removal of all copies.
 - No recovery path: losing the credential means losing access to the vault.
+- Credential creation and unlock are executed on `Dispatchers.IO`, not the UI thread.
 
 ## Key hierarchy
 
@@ -35,14 +36,15 @@ The device-bound Keystore factor intentionally means this local vault record is 
 - Nonces are freshly generated for every wrapping operation.
 - Authenticated additional data binds the wrapped key to the current record format.
 - KDF parameters are recorded and checked against the supported version before unwrapping.
-- Credential operations must run off the main thread.
-- The key returned by `VaultKeyMaterial` is an in-memory session key. Callers must close the object and clear any copies as soon as possible.
+- `VaultKeyMaterial` is a closable in-memory session key. Callers must close it and clear any copies as soon as possible.
+- Android Keystore HMAC keys are non-exportable, but hardware-backed status is device-dependent and is not assumed.
 
 ## Remaining security work
 
 - Integrate the DEK with encrypted database and attachment storage.
 - Add Android instrumentation tests for Keystore operations, invalidation, process death, and real-device lockout persistence.
-- Verify actual Keystore security level (TEE/StrongBox where available) and report device capability; do not assume hardware backing.
+- Verify actual Keystore security level (TEE/StrongBox where available) and report device capability.
 - Add cryptographic test vectors and independent security review.
 - Implement portable encrypted backup using a separate PIN-derived archive key and tamper tests.
 - Verify merged manifest and APK contain no INTERNET permission or network stack dependencies.
+- Implement the requested 30-second auto-lock and screen-capture/Recent Apps privacy layer.

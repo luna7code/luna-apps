@@ -37,7 +37,7 @@ interface LockoutStateStore {
 
 /**
  * Persists retry state with an Android Keystore HMAC. Missing or modified state
- * while the integrity key still exists fails closed instead of resetting attempts.
+ * while the integrity key remains present fails closed instead of resetting attempts.
  */
 class SharedPreferencesLockoutStateStore(
     context: Context,
@@ -60,7 +60,7 @@ class SharedPreferencesLockoutStateStore(
             failedAttempts = preferences.getInt(KEY_FAILURES, 0),
             blockedUntilEpochMs = preferences.getLong(KEY_BLOCKED_UNTIL, 0L)
         )
-        val expected = integrityMac.authenticate(encode(state))
+        val expected = integrityMac.authenticateExisting(encode(state))
         val actual = android.util.Base64.decode(
             preferences.getString(KEY_MAC, null) ?: error("Missing lockout MAC"),
             android.util.Base64.NO_WRAP

@@ -7,26 +7,37 @@ import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.SecretKey
 
-fun interface KeyedMac {
+interface KeyedMac {
     fun authenticate(data: ByteArray): ByteArray
+
+    /** Existing keys must be used for unlock; silently recreating one would brick the vault. */
+    fun authenticateExisting(data: ByteArray): ByteArray = authenticate(data)
 }
 
 /**
  * Non-exportable HMAC-SHA256 key backed by Android Keystore.
- * The resulting MAC is returned to the app process; the key material is not.
+ * Creation and use are separate so unlock never silently replaces a missing key.
  */
 class AndroidKeystoreMac(
     private val alias: String
 ) : KeyedMac {
-    override fun authenticate(data: ByteArray): ByteArray {
-        val key = getOrCreateKey()
-        return Mac.getInstance(HMAC_ALGORITHM, ANDROID_KEYSTORE).run {
-            init(key)
-            doFinal(data)
-        }
+    override fun authenticate(data: ByteArray): ByteArray =
+        authenticateWithKey(getOrCreateKey(), data)
+
+    override fun authenticateExisting(data: ByteArray): ByteArray {
+        val keyStore = loadKeyStore()
+        val key = keyStore.getKey(alias, null) as? SecretKey
+            ?: throw KeyUnavailableException("Required Android Keystore key is missing")
+        return authenticateWithKey(key, data)
     }
 
     fun hasKey(): Boolean = loadKeyStore().containsAlias(alias)
+
+    private fun authenticateWithKey(key: SecretKey, data: ByteArray): ByteArray =
+        Mac.getInstance(HMAC_ALGORITHM, ANDROID_KEYSTORE).run {
+            init(key)
+            doFinal(data)
+        }
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = loadKeyStore()
@@ -54,3 +65,5 @@ class AndroidKeystoreMac(
         const val HMAC_ALGORITHM = "HmacSHA256"
     }
 }
+
+class KeyUnavailableException(message: String) : SecurityException(message)
