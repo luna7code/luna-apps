@@ -36,6 +36,24 @@ Plum Shadow is a restrained premium palette: near-black plum foundations, quiet 
 | Success | `#A6D7B5` | `#216A43` |
 | Success container | `#1D3A2B` | `#D2F0DC` |
 
+## Verified text contrast pairs
+
+WCAG relative-luminance calculations for the following intended pairings:
+
+| Pair | Contrast |
+|---|---:|
+| Dark primary text / background | 17.36:1 |
+| Dark secondary text / surface | 9.80:1 |
+| Dark muted text / surface | 5.95:1 |
+| Dark accent / background | 9.70:1 |
+| Light primary text / background | 16.17:1 |
+| Light secondary text / surface | 8.67:1 |
+| Light muted text / surface | 5.75:1 |
+| Light accent / background | 7.16:1 |
+| White text / light accent button | 7.61:1 |
+
+These ratios apply only to the exact foreground/background pairs listed. Recalculate for other combinations, transparency, overlays, disabled states, and images.
+
 ## Usage rules
 
 1. Use `background` only for the app canvas and large page backgrounds.
@@ -47,10 +65,10 @@ Plum Shadow is a restrained premium palette: near-black plum foundations, quiet 
 7. Borders should be subtle. Use the stronger border for focused/selected controls.
 8. Do not introduce blue, neon gradients, or unrelated accent colors.
 
-## Contrast requirements
+## Accessibility requirements
 
-- Normal text: target WCAG 2.2 AA contrast of at least 4.5:1 against its actual surface.
-- Large text and essential UI boundaries: target at least 3:1.
+- Normal text: WCAG 2.2 AA minimum 4.5:1 against its actual surface.
+- Large text and essential UI boundaries: minimum 3:1.
 - Recheck contrast whenever a token is used on a surface other than its paired semantic background.
 - Status text must remain legible in both modes.
 

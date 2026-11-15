@@ -1,16 +1,17 @@
 package com.luna.secretnotes.ui.theme
 
+import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PlumShadowTest {
     @Test
     fun approvedPaletteHexValuesRemainStable() {
-        assertEquals(0xFF100D12.toInt(), PlumShadow.DarkBackground.value.toLong().toInt())
-        assertEquals(0xFF261D2B.toInt(), PlumShadow.DarkCard.value.toLong().toInt())
-        assertEquals(0xFFD6A8E2.toInt(), PlumShadow.DarkAccent.value.toLong().toInt())
-        assertEquals(0xFFFAF7FB.toInt(), PlumShadow.LightBackground.value.toLong().toInt())
-        assertEquals(0xFF70427C.toInt(), PlumShadow.LightAccent.value.toLong().toInt())
+        assertEquals(0xFF100D12.toInt(), PlumShadow.DarkBackground.toArgb())
+        assertEquals(0xFF261D2B.toInt(), PlumShadow.DarkCard.toArgb())
+        assertEquals(0xFFD6A8E2.toInt(), PlumShadow.DarkAccent.toArgb())
+        assertEquals(0xFFFAF7FB.toInt(), PlumShadow.LightBackground.toArgb())
+        assertEquals(0xFF70427C.toInt(), PlumShadow.LightAccent.toArgb())
     }
 
     @Test
