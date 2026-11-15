@@ -1,0 +1,20 @@
+{
+  "name": "luna-apps-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "nx": "nx",
+    "graph": "nx graph",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "eslint": "10.15.0",
+    "nx": "23.2.0",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3"
+  }
+}
