@@ -378,9 +378,7 @@ private fun readTextPreview(file: File): String {
     }
     val text = bytes.copyOf(count).toString(Charsets.UTF_8)
     bytes.fill(0)
-    return if (file.length() > count) "$text
-
-[Preview truncated]" else text
+    return if (file.length() > count) text + "\n\n[Preview truncated]" else text
 }
 
 private fun decodePreviewImage(file: File): Bitmap? {

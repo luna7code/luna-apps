@@ -1,6 +1,7 @@
 package com.luna.secretnotes.ui.notes
 
 import android.net.Uri
+import java.io.File
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -136,7 +137,7 @@ fun NotesHomeScreen(
                     backupMessage = "Backup failed. Check the vault password and available storage."
                 } finally {
                     key?.fill(0)
-                    password.fill('\\u0000')
+                    password.fill('\u0000')
                     backupBusy = false
                 }
             }
