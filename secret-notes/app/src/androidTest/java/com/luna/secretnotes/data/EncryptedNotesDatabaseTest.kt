@@ -15,27 +15,31 @@ class EncryptedNotesDatabaseTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun noteRoundTripAndTrashAreEncryptedAtRest() {
+    fun encryptedRoundTripTrashFoldersAndAttachmentMetadata() {
         context.deleteDatabase("secret_notes.db")
         val key = ByteArray(32).also(SecureRandom()::nextBytes)
         val note = NoteRecord(
-            id = "note-1",
-            title = "Black hole observation",
-            body = "This private note must never appear in plaintext on disk.",
-            createdAt = 100L,
-            updatedAt = 200L,
-            folderId = "space",
-            tagsJson = """["astronomy","private"]""",
-            pinned = true
+            id = "note-1", title = "Black hole observation",
+            body = "Private long-form text", createdAt = 100L, updatedAt = 200L,
+            folderId = "space", tagsJson = """["astronomy","private"]""", pinned = true
         )
 
         EncryptedNotesDatabase(context) { key.copyOf() }.use { database ->
             database.open()
+            database.saveFolder(FolderRecord("space", "Astronomy", 10L, 10L))
             database.save(note)
+            database.saveAttachment(
+                AttachmentRecord("att-1", note.id, "att-1.sna", "spectrum.fits", "application/octet-stream", 4096L, 210L)
+            )
             assertEquals(note, database.get(note.id))
+            assertEquals("Astronomy", database.listFolders().single().name)
+            assertEquals(1, database.listAttachments(note.id).size)
+            assertEquals(1, database.search("Black hole").size)
             database.moveToTrash(note.id, 300L)
             assertFalse(database.list().any { it.id == note.id })
-            assertEquals(1, database.list(includeTrash = true).size)
+            assertEquals(1, database.list(includeTrash = true, archived = null).size)
+            database.restoreFromTrash(note.id, 400L)
+            assertEquals(note.copy(updatedAt = 400L), database.get(note.id))
         }
 
         val file = context.getDatabasePath("secret_notes.db")
@@ -45,7 +49,7 @@ class EncryptedNotesDatabaseTest {
 
         EncryptedNotesDatabase(context) { key.copyOf() }.use { reopened ->
             reopened.open()
-            assertEquals(note.copy(deletedAt = 300L, updatedAt = 300L), reopened.get(note.id))
+            assertEquals(note.copy(updatedAt = 400L), reopened.get(note.id))
         }
         key.fill(0)
         context.deleteDatabase("secret_notes.db")
@@ -56,7 +60,6 @@ class EncryptedNotesDatabaseTest {
         context.deleteDatabase("secret_notes.db")
         val key = ByteArray(32) { 0x31 }
         EncryptedNotesDatabase(context) { key.copyOf() }.use { it.open() }
-
         val wrongKey = ByteArray(32) { 0x72 }
         var rejected = false
         try {

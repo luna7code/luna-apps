@@ -5,37 +5,30 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NotesMigrationsTest {
-    @Test
-    fun freshDatabaseBuildsAllSchemaVersionsInOrder() {
+    @Test fun freshDatabaseBuildsAllSchemaVersionsInOrder() {
         val statements = NotesMigrations.migrationPath(0)
-        assertEquals(10, statements.size)
+        assertEquals(12, statements.size)
         assertTrue(statements.first().contains("CREATE TABLE notes"))
         assertTrue(statements.any { it.contains("ADD COLUMN tags") })
         assertTrue(statements.any { it.contains("ADD COLUMN deleted_at") })
         assertTrue(statements.any { it.contains("CREATE TABLE folders") })
-        assertTrue(statements.last().contains("index_notes_deleted_at"))
+        assertTrue(statements.any { it.contains("CREATE TABLE attachments") })
+        assertTrue(statements.last().contains("index_attachments_note_id"))
     }
-
-    @Test
-    fun versionOneMigrationAddsPrivateMetadata() {
+    @Test fun versionOneMigrationAddsPrivateMetadataAndAttachments() {
         val statements = NotesMigrations.migrationPath(1)
-        assertEquals(9, statements.size)
+        assertEquals(11, statements.size)
         assertTrue(statements.any { it.contains("folder_id") })
         assertTrue(statements.any { it.contains("tags") })
+        assertTrue(statements.any { it.contains("CREATE TABLE attachments") })
     }
-
-    @Test
-    fun currentVersionNeedsNoMigration() {
+    @Test fun currentVersionNeedsNoMigration() {
         assertTrue(NotesMigrations.migrationPath(NotesMigrations.VERSION).isEmpty())
     }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun rejectsDowngrade() {
-        NotesMigrations.migrationPath(3, 2)
+    @Test(expected = IllegalArgumentException::class) fun rejectsDowngrade() {
+        NotesMigrations.migrationPath(4, 3)
     }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun rejectsFutureSchema() {
-        NotesMigrations.migrationPath(4)
+    @Test(expected = IllegalArgumentException::class) fun rejectsFutureSchema() {
+        NotesMigrations.migrationPath(5)
     }
 }
