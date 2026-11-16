@@ -6,6 +6,7 @@ import android.database.Cursor
 import net.zetetic.database.sqlcipher.SQLiteDatabase
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 
 data class NoteRecord(
     val id: String, val title: String, val body: String, val createdAt: Long, val updatedAt: Long,
@@ -80,15 +81,23 @@ class EncryptedNotesDatabase(
         return queryNotes(clauses.joinToString(" AND ", " WHERE "), if (folderId == null) emptyArray() else arrayOf(folderId))
     }
 
-    @Synchronized fun search(query: String, includeTrash: Boolean = false, archived: Boolean? = false): List<NoteRecord> {
+    @Synchronized fun search(
+        query: String,
+        includeTrash: Boolean = false,
+        archived: Boolean? = false,
+        folderId: String? = null
+    ): List<NoteRecord> {
         val clauses = mutableListOf(
             "(title LIKE ? ESCAPE '!' OR body LIKE ? ESCAPE '!' OR tags LIKE ? ESCAPE '!')",
             if (includeTrash) "deleted_at IS NOT NULL" else "deleted_at IS NULL"
         )
         if (archived != null) clauses += "is_archived = ${if (archived) 1 else 0}"
+        if (folderId != null) clauses += "folder_id = ?"
         val escaped = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
         val pattern = "%$escaped%"
-        return queryNotes(clauses.joinToString(" AND ", " WHERE "), arrayOf(pattern, pattern, pattern))
+        val args = mutableListOf(pattern, pattern, pattern)
+        if (folderId != null) args += folderId
+        return queryNotes(clauses.joinToString(" AND ", " WHERE "), args.toTypedArray())
     }
 
     @Synchronized fun setPinned(id: String, pinned: Boolean, updatedAt: Long) {
@@ -103,8 +112,23 @@ class EncryptedNotesDatabase(
     @Synchronized fun restoreFromTrash(id: String, updatedAt: Long) {
         requireDatabase().execSQL("UPDATE notes SET deleted_at = NULL, updated_at = ? WHERE id = ?", arrayOf<Any>(updatedAt, id))
     }
-    @Synchronized fun permanentlyDelete(id: String) { requireDatabase().delete("notes", "id = ?", arrayOf(id)) }
-    @Synchronized fun emptyTrash() { requireDatabase().delete("notes", "deleted_at IS NOT NULL", null) }
+    @Synchronized fun permanentlyDelete(id: String) {
+        val attached = listAttachments(id)
+        requireDatabase().delete("notes", "id = ?", arrayOf(id))
+        attached.forEach { newAttachmentCipher().delete(it.encryptedFileName, it.id) }
+    }
+
+    @Synchronized fun emptyTrash() {
+        val attached = listTrashedAttachments()
+        requireDatabase().delete("notes", "deleted_at IS NOT NULL", null)
+        attached.forEach { newAttachmentCipher().delete(it.encryptedFileName, it.id) }
+    }
+
+    @Synchronized fun deleteAttachment(id: String) {
+        val attachment = findAttachment(id) ?: return
+        requireDatabase().delete("attachments", "id = ?", arrayOf(id))
+        newAttachmentCipher().delete(attachment.encryptedFileName, attachment.id)
+    }
 
     @Synchronized fun saveFolder(folder: FolderRecord) {
         val values = ContentValues().apply {
@@ -154,6 +178,36 @@ class EncryptedNotesDatabase(
     }
     @Synchronized fun deleteAttachmentMetadata(id: String) { requireDatabase().delete("attachments", "id = ?", arrayOf(id)) }
 
+    @Synchronized
+    fun createBackupSnapshot(stagingRoot: File): BackupSnapshot {
+        check(database?.isOpen == true) { "Database must be open for backup" }
+        val snapshotDirectory = File(stagingRoot, "snapshot-${UUID.randomUUID()}")
+        check(snapshotDirectory.mkdirs()) { "Cannot create backup snapshot directory" }
+        try {
+            val databaseCopy = File(snapshotDirectory, DATABASE_NAME)
+            databaseFile.copyTo(databaseCopy, overwrite = true)
+            val attachmentsCopy = File(snapshotDirectory, ATTACHMENTS_DIRECTORY)
+            attachmentsCopy.mkdirs()
+            attachmentsDirectory.listFiles().orEmpty().filter { it.isFile }.forEach { source ->
+                source.copyTo(File(attachmentsCopy, source.name), overwrite = true)
+            }
+            return BackupSnapshot(snapshotDirectory, databaseCopy, attachmentsCopy)
+        } catch (error: Throwable) {
+            snapshotDirectory.deleteRecursively()
+            throw error
+        }
+    }
+
+    data class BackupSnapshot(
+        private val directory: File,
+        val databaseFile: File,
+        val attachmentsDirectory: File
+    ) : AutoCloseable {
+        override fun close() {
+            directory.deleteRecursively()
+        }
+    }
+
     fun encryptedDatabaseFileForBackup(): File {
         check(database?.isOpen == true) { "Database must be open for backup" }
         return databaseFile
@@ -175,6 +229,35 @@ class EncryptedNotesDatabase(
 
     @Synchronized override fun close() {
         if (closed.compareAndSet(false, true)) { database?.close(); database = null }
+    }
+
+    private fun findAttachment(id: String): AttachmentRecord? {
+        val cursor = requireDatabase().rawQuery(
+            "SELECT id,note_id,encrypted_file_name,display_name,mime_type,size_bytes,created_at FROM attachments WHERE id = ? LIMIT 1",
+            arrayOf(id)
+        )
+        return cursor.use {
+            if (!it.moveToFirst()) null else AttachmentRecord(
+                it.getString(0), it.getString(1), it.getString(2), it.getString(3),
+                it.getString(4), it.getLong(5), it.getLong(6)
+            )
+        }
+    }
+
+    private fun listTrashedAttachments(): List<AttachmentRecord> {
+        val cursor = requireDatabase().rawQuery(
+            """SELECT a.id,a.note_id,a.encrypted_file_name,a.display_name,a.mime_type,a.size_bytes,a.created_at
+               FROM attachments a INNER JOIN notes n ON n.id = a.note_id WHERE n.deleted_at IS NOT NULL""",
+            emptyArray()
+        )
+        return cursor.use {
+            buildList {
+                while (it.moveToNext()) add(AttachmentRecord(
+                    it.getString(0), it.getString(1), it.getString(2), it.getString(3),
+                    it.getString(4), it.getLong(5), it.getLong(6)
+                ))
+            }
+        }
     }
 
     private fun queryNotes(selection: String, args: Array<String>): List<NoteRecord> {

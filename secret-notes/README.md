@@ -1,27 +1,38 @@
 # SECRET NOTES
 
-Standalone Android notes application inside the `luna-apps` repository.
+Standalone, offline-first Android notebook in the `luna-apps` repository. This project is independent of FLY SECRET.
 
-> **Status: foundation scaffold.** This commit establishes the isolated Android application module and CI build. PIN authentication, encrypted persistence, attachments, and the full notes experience are not implemented yet.
-
-## Project boundaries
-
-- Independent Android application; not part of FLY SECRET.
+## Product
 - Application ID: `com.luna.secretnotes`.
-- Native Kotlin + Jetpack Compose.
-- Local-first direction; no account or network dependency in the initial release.
-- All application source and build files live under `secret-notes/`.
+- Kotlin + Jetpack Compose, minSdk 26, targetSdk 35, JDK 17.
+- Visual identity: Cosmic / Event Horizon — deep-black space, silver starlight, restrained pulsar-blue and nebula-violet accents.
+- Launcher icon: the supplied silver planet with orbital ring.
+- PIN/password unlock only. No biometrics, no recovery key, no cloud account, sync, analytics, ads or telemetry.
+- The application manifest does not request INTERNET permission; Android backup is disabled.
 
-## Build
+## Implemented in the current feature branch
+- Argon2id credential KDF, Android Keystore HMAC device binding, AES-GCM-wrapped random data key and progressive failed-attempt lockout.
+- SQLCipher-encrypted SQLite storage for notes, folders, tags, timestamps, pin/archive/trash state and attachment metadata.
+- Notes workspace with create/edit, Markdown-assisted plain text formatting, debounced local saving, search, folders, pin, archive, trash, restore and permanent deletion.
+- Streaming attachments with per-file HKDF-derived key, chunked AES-256-GCM authentication, authenticated final marker and tamper/truncation detection.
+- Built-in plain-text, raster-image and first-page PDF previews. External viewing requires a warning and uses a constrained FileProvider path. Temporary plaintext exports are deleted after 24 hours on a later app launch (best-effort).
+- 30-second inactivity lock, grace period when temporarily leaving the app, immediate lock on screen-off, and FLAG_SECURE.
+- Manual encrypted SNB backup export and restore. Backup uses Argon2id + AES-GCM, wraps the vault DEK, validates the restored SQLCipher database, stages files, and rolls back the current DB/attachments if the install fails.
 
-Requires JDK 17, Android SDK Platform 35, and Gradle 8.9.
+## Build and test
+Requires JDK 17, Android SDK Platform 35 and Gradle 8.9.
 
 ```bash
 cd secret-notes
 gradle :app:assembleDebug
+gradle :app:assembleRelease
 gradle :app:testDebugUnitTest
+gradle :app:connectedDebugAndroidTest
 ```
 
-## Security implementation gates
+CI additionally inspects the packaged APK manifest to verify that it has no INTERNET permission, disables Android backup and declares the launcher icon and FileProvider.
 
-Do not store a PIN or a plain hash of a PIN. Before shipping sensitive data storage, implement and test a documented key hierarchy using Android Keystore, a suitably configured password KDF, per-install random salts, and authenticated encryption (AES-GCM). Define lockout/rate limiting, backup exclusions, screenshot/recents protection, and recovery semantics. The current scaffold does not claim to provide these protections.
+## Security caveats
+This branch is still under active validation and is not security-certified. Some UI and lifecycle behaviors need physical-device QA; hardware-backed Keystore is device-dependent; external applications can retain files they receive; memory zeroization on the JVM is best-effort; and release signing/independent security review are not complete. Never claim data is unrecoverable after deletion on flash storage: secure deletion is best-effort because of filesystem wear-leveling and storage snapshots.
+
+See [SECURITY_FOUNDATION.md](SECURITY_FOUNDATION.md) and [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for architecture and design details.

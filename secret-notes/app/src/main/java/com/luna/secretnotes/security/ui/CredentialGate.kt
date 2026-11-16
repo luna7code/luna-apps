@@ -1,5 +1,9 @@
 package com.luna.secretnotes.security.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,6 +18,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -21,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.luna.secretnotes.data.EncryptedNotesDatabase
+import com.luna.secretnotes.data.VaultBackupRestoreCoordinator
 import com.luna.secretnotes.security.*
 import com.luna.secretnotes.ui.notes.NotesHomeScreen
 import com.luna.secretnotes.ui.theme.CosmicTheme
@@ -44,6 +50,7 @@ fun CredentialGate(vault: CredentialVault) {
     var busy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var lastActivity by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
+    var backgroundStartedAt by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
 
     fun touch() {
@@ -61,13 +68,41 @@ fun CredentialGate(vault: CredentialVault) {
     }
 
     val currentLockAction by rememberUpdatedState(newValue = { lockVault() })
+    val latestLastActivity by rememberUpdatedState(lastActivity)
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) currentLockAction()
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    backgroundStartedAt = SystemClock.elapsedRealtime()
+                }
+                Lifecycle.Event.ON_START -> {
+                    val inactiveFor = SystemClock.elapsedRealtime() - latestLastActivity
+                    if (inactiveFor >= AUTO_LOCK_MS) {
+                        currentLockAction()
+                    }
+                    backgroundStartedAt = null
+                }
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(context) {
+        val screenReceiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_SCREEN_OFF) currentLockAction()
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            screenReceiver,
+            IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { context.unregisterReceiver(screenReceiver) }
     }
 
     DisposableEffect(session) {
@@ -105,6 +140,19 @@ fun CredentialGate(vault: CredentialVault) {
         }
     }
 
+    LaunchedEffect(session, backgroundStartedAt, lastActivity) {
+        if (session != null && backgroundStartedAt != null) {
+            val inactiveFor = SystemClock.elapsedRealtime() - lastActivity
+            val remaining = (AUTO_LOCK_MS - inactiveFor).coerceAtLeast(0L)
+            delay(remaining)
+            if (backgroundStartedAt != null &&
+                SystemClock.elapsedRealtime() - lastActivity >= AUTO_LOCK_MS
+            ) {
+                lockVault()
+            }
+        }
+    }
+
     Surface(Modifier.fillMaxSize(), color = CosmicTheme.Background) {
         Column(
             Modifier.fillMaxSize()
@@ -135,7 +183,25 @@ fun CredentialGate(vault: CredentialVault) {
                     database = encryptedDatabase!!,
                     vault = vault,
                     onLock = { lockVault() },
-                    onActivity = { touch() }
+                    onActivity = { touch() },
+                    onRestoreBackup = { restored, currentPassword ->
+                        val existingSession = session ?: error("Vault is locked")
+                        encryptedDatabase?.close()
+                        encryptedDatabase = null
+                        try {
+                            val newSession = withContext(Dispatchers.IO) {
+                                VaultBackupRestoreCoordinator(context, vault).install(restored, currentPassword)
+                            }
+                            existingSession.close()
+                            session = newSession
+                            touch()
+                        } catch (failure: Exception) {
+                            encryptedDatabase = withContext(Dispatchers.IO) {
+                                EncryptedNotesDatabase(context) { existingSession.copyForUse() }.open()
+                            }
+                            throw failure
+                        }
+                    }
                 )
             } else if (session != null) {
                 Column(

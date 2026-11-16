@@ -1,6 +1,6 @@
 package com.luna.secretnotes.ui.notes
 
-import android.content.Context
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -28,6 +28,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,7 +61,8 @@ fun NotesHomeScreen(
     database: EncryptedNotesDatabase,
     vault: CredentialVault,
     onLock: () -> Unit,
-    onActivity: () -> Unit
+    onActivity: () -> Unit,
+    onRestoreBackup: suspend (EncryptedBackupManager.RestoredBackup, CharArray) -> Unit
 ) {
     var mode by remember { mutableStateOf(NotesMode.NOTES) }
     var search by remember { mutableStateOf("") }
@@ -73,7 +75,16 @@ fun NotesHomeScreen(
     var backupPassword by remember { mutableStateOf("") }
     var backupBusy by remember { mutableStateOf(false) }
     var backupMessage by remember { mutableStateOf<String?>(null) }
+    var restoreUri by remember { mutableStateOf<Uri?>(null) }
+    var restoreDialogOpen by remember { mutableStateOf(false) }
+    var archivePassword by remember { mutableStateOf("") }
+    var currentVaultPassword by remember { mutableStateOf("") }
+    var restoreBusy by remember { mutableStateOf(false) }
+    var restoreMessage by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<NoteRecord?>(null) }
+    var draftId by remember { mutableStateOf("") }
+    var draftReady by remember { mutableStateOf(false) }
+    var discardPendingDraft by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
@@ -82,6 +93,18 @@ fun NotesHomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    val backupSource = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            restoreUri = uri
+            archivePassword = ""
+            currentVaultPassword = ""
+            restoreMessage = null
+            restoreDialogOpen = true
+        }
+    }
 
     val backupDestination = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -97,13 +120,13 @@ fun NotesHomeScreen(
                         // Authenticate the supplied archive password against the app's actual vault credential.
                         vault.unlock(password.copyOf()).close()
                         key = database.copyVaultKeyForAttachment()
-                        val dbFile = database.encryptedDatabaseFileForBackup()
-                        val attachmentDirectory = database.encryptedAttachmentsDirectoryForBackup()
-                        val output = context.contentResolver.openOutputStream(uri)
-                            ?: error("Cannot open selected backup destination")
-                        output.use {
-                            EncryptedBackupManager(File(context.cacheDir, "secret_notes_backup_staging"))
-                                .export(password, key!!, dbFile, attachmentDirectory, it)
+                        database.createBackupSnapshot(File(context.cacheDir, "secret_notes_backup_staging")).use { snapshot ->
+                            val output = context.contentResolver.openOutputStream(uri)
+                                ?: error("Cannot open selected backup destination")
+                            output.use {
+                                EncryptedBackupManager(File(context.cacheDir, "secret_notes_backup_staging"))
+                                    .export(password, key!!, snapshot.databaseFile, snapshot.attachmentsDirectory, it)
+                            }
                         }
                     }
                     backupMessage = "Encrypted backup saved."
@@ -139,7 +162,8 @@ fun NotesHomeScreen(
                                 NotesMode.NOTES -> false
                                 NotesMode.ARCHIVE -> true
                                 NotesMode.TRASH -> null
-                            }
+                            },
+                            folderId = selectedFolder
                         )
                     }
                     list to database.listFolders()
@@ -159,14 +183,52 @@ fun NotesHomeScreen(
 
     fun startNewNote() {
         editing = null
+        draftId = UUID.randomUUID().toString()
+        draftReady = false
+        discardPendingDraft = false
         title = ""
         body = ""
         tags = ""
         editorOpen = true
+        val id = draftId
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val now = System.currentTimeMillis()
+                    database.save(NoteRecord(id, "", "", now, now, selectedFolder))
+                }
+                if (discardPendingDraft) {
+                    withContext(Dispatchers.IO) { database.permanentlyDelete(id) }
+                    discardPendingDraft = false
+                } else {
+                    draftReady = true
+                }
+            } catch (_: Exception) {
+                error = "Не удалось создать защищённый черновик."
+            }
+        }
+    }
+
+    fun discardDraft() {
+        editorOpen = false
+        if (editing == null && draftId.isNotBlank()) {
+            val id = draftId
+            if (draftReady) {
+                draftReady = false
+                scope.launch {
+                    withContext(Dispatchers.IO) { database.permanentlyDelete(id) }
+                    reload()
+                }
+            } else {
+                discardPendingDraft = true
+            }
+        }
     }
 
     fun startEditNote(note: NoteRecord) {
         editing = note
+        draftId = note.id
+        draftReady = true
         title = note.title
         body = note.body
         tags = runCatching {
@@ -174,6 +236,30 @@ fun NotesHomeScreen(
             (0 until json.length()).joinToString(", ") { json.getString(it) }
         }.getOrDefault("")
         editorOpen = true
+    }
+
+    LaunchedEffect(editorOpen, draftId, draftReady, title, body, tags) {
+        if (editorOpen && draftReady) {
+            kotlinx.coroutines.delay(650)
+            val old = editing
+            val now = System.currentTimeMillis()
+            val encodedTags = JSONArray(tags.split(",").map { it.trim() }.filter { it.isNotBlank() }).toString()
+            withContext(Dispatchers.IO) {
+                database.save(
+                    NoteRecord(
+                        id = draftId,
+                        title = title.trim(),
+                        body = body,
+                        createdAt = old?.createdAt ?: (database.get(draftId)?.createdAt ?: now),
+                        updatedAt = now,
+                        folderId = old?.folderId ?: selectedFolder,
+                        tagsJson = encodedTags,
+                        pinned = old?.pinned ?: false,
+                        archived = old?.archived ?: false
+                    )
+                )
+            }
+        }
     }
 
     Scaffold(
@@ -215,6 +301,7 @@ fun NotesHomeScreen(
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { onActivity(); folderDialogOpen = true }) { Text("Folders") }
                 TextButton(onClick = { onActivity(); backupDialogOpen = true }) { Text("Backup") }
+                TextButton(onClick = { onActivity(); backupSource.launch(arrayOf("application/octet-stream", "application/x-secret-notes-backup", "*/*")) }) { Text("Restore") }
             }
 
             if (selectedFolder != null) {
@@ -343,7 +430,7 @@ fun NotesHomeScreen(
 
     if (editorOpen) {
         AlertDialog(
-            onDismissRequest = { editorOpen = false },
+            onDismissRequest = { discardDraft() },
             title = { Text(if (editing == null) "New note" else "Edit note") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -354,10 +441,16 @@ fun NotesHomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(onClick = { body = if (body.isBlank()) "# " else "$body\\n# "; onActivity() }) { Text("H1") }
+                        OutlinedButton(onClick = { body += if (body.endsWith("\\n") || body.isBlank()) "**bold**" else "\\n**bold**"; onActivity() }) { Text("Bold") }
+                        OutlinedButton(onClick = { body += if (body.endsWith("\\n") || body.isBlank()) "- " else "\\n- "; onActivity() }) { Text("List") }
+                        OutlinedButton(onClick = { body += if (body.endsWith("\\n") || body.isBlank()) "- [ ] " else "\\n- [ ] "; onActivity() }) { Text("Task") }
+                    }
                     OutlinedTextField(
                         value = body,
                         onValueChange = { body = it; onActivity() },
-                        label = { Text("Note") },
+                        label = { Text("Note · Markdown supported") },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 5
                     )
@@ -367,10 +460,21 @@ fun NotesHomeScreen(
                         label = { Text("Tags, separated by commas") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (draftReady) {
+                        NoteAttachmentsSection(
+                            database = database,
+                            noteId = draftId,
+                            onActivity = onActivity
+                        )
+                    } else {
+                        Text("Preparing encrypted note…", color = CosmicTheme.TextMuted)
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = {
+                Button(
+                    enabled = draftReady,
+                    onClick = {
                     val now = System.currentTimeMillis()
                     val old = editing
                     val encodedTags = JSONArray(
@@ -380,7 +484,7 @@ fun NotesHomeScreen(
                         withContext(Dispatchers.IO) {
                             database.save(
                                 NoteRecord(
-                                    id = old?.id ?: UUID.randomUUID().toString(),
+                                    id = draftId,
                                     title = title.trim(),
                                     body = body,
                                     createdAt = old?.createdAt ?: now,
@@ -398,7 +502,100 @@ fun NotesHomeScreen(
                 }) { Text("Save") }
             },
             dismissButton = {
-                TextButton(onClick = { editorOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { discardDraft() }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (restoreDialogOpen) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!restoreBusy) {
+                    restoreDialogOpen = false
+                    archivePassword = ""
+                    currentVaultPassword = ""
+                    restoreUri = null
+                }
+            },
+            title = { Text("Restore encrypted backup") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Enter the password used when this archive was created, then confirm your current vault PIN/password. The backup is verified and staged before your local vault is replaced.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CosmicTheme.TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = archivePassword,
+                        onValueChange = { archivePassword = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !restoreBusy,
+                        label = { Text("Backup password") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    OutlinedTextField(
+                        value = currentVaultPassword,
+                        onValueChange = { currentVaultPassword = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !restoreBusy,
+                        label = { Text("Current vault PIN / password") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    restoreMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !restoreBusy && archivePassword.isNotEmpty() &&
+                        currentVaultPassword.isNotEmpty() && restoreUri != null,
+                    onClick = {
+                        val uri = restoreUri ?: return@Button
+                        val backupSecret = archivePassword.toCharArray()
+                        val currentSecret = currentVaultPassword.toCharArray()
+                        scope.launch {
+                            restoreBusy = true
+                            restoreMessage = null
+                            var restored: EncryptedBackupManager.RestoredBackup? = null
+                            try {
+                                restored = withContext(Dispatchers.IO) {
+                                    val input = context.contentResolver.openInputStream(uri)
+                                        ?: error("Cannot open backup file")
+                                    input.use {
+                                        EncryptedBackupManager(
+                                            File(context.cacheDir, "secret_notes_backup_staging")
+                                        ).restore(backupSecret, it)
+                                    }
+                                }
+                                onRestoreBackup(restored, currentSecret)
+                                restoreDialogOpen = false
+                                restoreUri = null
+                                archivePassword = ""
+                                currentVaultPassword = ""
+                                backupMessage = "Backup restored successfully."
+                            } catch (_: Exception) {
+                                restoreMessage = "Restore failed. The existing vault was preserved."
+                            } finally {
+                                restored?.close()
+                                backupSecret.fill('\\u0000')
+                                currentSecret.fill('\\u0000')
+                                restoreBusy = false
+                            }
+                        }
+                    }
+                ) { Text(if (restoreBusy) "Restoring…" else "Verify and restore") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !restoreBusy,
+                    onClick = {
+                        restoreDialogOpen = false
+                        archivePassword = ""
+                        currentVaultPassword = ""
+                        restoreUri = null
+                    }
+                ) { Text("Cancel") }
             }
         )
     }
