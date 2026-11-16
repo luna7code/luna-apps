@@ -153,6 +153,34 @@ class ChunkedAttachmentCipher(
         }
     }
 
+    /**
+     * Decrypts to a private staging file and publishes only after every chunk and
+     * the authenticated terminal record have passed verification. Callers must
+     * place destination in app-private cache/storage and delete it after use.
+     */
+    fun decryptToFile(
+        encryptedFileName: String,
+        attachmentId: String,
+        vaultKey: ByteArray,
+        destination: File
+    ): Long {
+        require(!destination.exists()) { "Preview destination already exists" }
+        val parent = destination.parentFile ?: error("Preview destination has no parent")
+        if (!parent.exists()) check(parent.mkdirs()) { "Cannot create preview directory" }
+        val temporary = File(parent, destination.name + ".staging-" + System.nanoTime())
+        try {
+            val size = FileOutputStream(temporary).use { output ->
+                decrypt(encryptedFileName, attachmentId, vaultKey, output)
+            }
+            check(temporary.renameTo(destination)) { "Cannot atomically publish verified preview" }
+            return size
+        } catch (error: Throwable) {
+            temporary.delete()
+            destination.delete()
+            throw error
+        }
+    }
+
     fun delete(encryptedFileName: String, attachmentId: String) {
         validateId(attachmentId)
         require(encryptedFileName == "$attachmentId.sna") { "Invalid encrypted attachment path" }

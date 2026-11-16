@@ -154,6 +154,17 @@ class EncryptedNotesDatabase(
     }
     @Synchronized fun deleteAttachmentMetadata(id: String) { requireDatabase().delete("attachments", "id = ?", arrayOf(id)) }
 
+    fun encryptedDatabaseFileForBackup(): File {
+        check(database?.isOpen == true) { "Database must be open for backup" }
+        return databaseFile
+    }
+
+    fun encryptedAttachmentsDirectoryForBackup(): File {
+        check(database?.isOpen == true) { "Database must be open for backup" }
+        if (!attachmentsDirectory.exists()) attachmentsDirectory.mkdirs()
+        return attachmentsDirectory
+    }
+
     fun newAttachmentCipher(): ChunkedAttachmentCipher = ChunkedAttachmentCipher(attachmentsDirectory)
     fun copyVaultKeyForAttachment(): ByteArray {
         check(database?.isOpen == true) { "Vault database is not open" }

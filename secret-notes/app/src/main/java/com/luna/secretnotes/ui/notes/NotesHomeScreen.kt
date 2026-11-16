@@ -1,5 +1,12 @@
 package com.luna.secretnotes.ui.notes
 
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.luna.secretnotes.data.EncryptedBackupManager
+import com.luna.secretnotes.security.CredentialVault
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,6 +58,7 @@ private enum class NotesMode { NOTES, ARCHIVE, TRASH }
 @Composable
 fun NotesHomeScreen(
     database: EncryptedNotesDatabase,
+    vault: CredentialVault,
     onLock: () -> Unit,
     onActivity: () -> Unit
 ) {
@@ -61,6 +69,10 @@ fun NotesHomeScreen(
     var folders by remember { mutableStateOf(emptyList<FolderRecord>()) }
     var editorOpen by remember { mutableStateOf(false) }
     var folderDialogOpen by remember { mutableStateOf(false) }
+    var backupDialogOpen by remember { mutableStateOf(false) }
+    var backupPassword by remember { mutableStateOf("") }
+    var backupBusy by remember { mutableStateOf(false) }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<NoteRecord?>(null) }
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
@@ -69,6 +81,44 @@ fun NotesHomeScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val backupDestination = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null) {
+            val password = backupPassword.toCharArray()
+            scope.launch {
+                backupBusy = true
+                backupMessage = null
+                var key: ByteArray? = null
+                try {
+                    withContext(Dispatchers.IO) {
+                        // Authenticate the supplied archive password against the app's actual vault credential.
+                        vault.unlock(password.copyOf()).close()
+                        key = database.copyVaultKeyForAttachment()
+                        val dbFile = database.encryptedDatabaseFileForBackup()
+                        val attachmentDirectory = database.encryptedAttachmentsDirectoryForBackup()
+                        val output = context.contentResolver.openOutputStream(uri)
+                            ?: error("Cannot open selected backup destination")
+                        output.use {
+                            EncryptedBackupManager(File(context.cacheDir, "secret_notes_backup_staging"))
+                                .export(password, key!!, dbFile, attachmentDirectory, it)
+                        }
+                    }
+                    backupMessage = "Encrypted backup saved."
+                    backupDialogOpen = false
+                    backupPassword = ""
+                } catch (_: Exception) {
+                    backupMessage = "Backup failed. Check the vault password and available storage."
+                } finally {
+                    key?.fill(0)
+                    password.fill('\\u0000')
+                    backupBusy = false
+                }
+            }
+        }
+    }
 
     fun reload() {
         scope.launch {
@@ -164,6 +214,7 @@ fun NotesHomeScreen(
                 FilterChip(selected = mode == NotesMode.TRASH, onClick = { mode = NotesMode.TRASH }, label = { Text("Trash") })
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { onActivity(); folderDialogOpen = true }) { Text("Folders") }
+                TextButton(onClick = { onActivity(); backupDialogOpen = true }) { Text("Backup") }
             }
 
             if (selectedFolder != null) {
@@ -348,6 +399,57 @@ fun NotesHomeScreen(
             },
             dismissButton = {
                 TextButton(onClick = { editorOpen = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (backupDialogOpen) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!backupBusy) {
+                    backupDialogOpen = false
+                    backupPassword = ""
+                }
+            },
+            title = { Text("Encrypted backup") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "The archive is encrypted using your current vault PIN or password. Keep the .snb file in a private location.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = CosmicTheme.TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = backupPassword,
+                        onValueChange = { backupPassword = it; onActivity() },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        enabled = !backupBusy,
+                        label = { Text("Vault PIN / password") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    backupMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !backupBusy && backupPassword.isNotEmpty(),
+                    onClick = {
+                        onActivity()
+                        backupDestination.launch("SECRET_NOTES_${System.currentTimeMillis()}.snb")
+                    }
+                ) {
+                    Text(if (backupBusy) "Encrypting…" else "Choose destination")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !backupBusy,
+                    onClick = {
+                        backupDialogOpen = false
+                        backupPassword = ""
+                    }
+                ) { Text("Cancel") }
             }
         )
     }

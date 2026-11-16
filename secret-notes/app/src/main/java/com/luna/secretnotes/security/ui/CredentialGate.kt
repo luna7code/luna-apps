@@ -133,6 +133,7 @@ fun CredentialGate(vault: CredentialVault) {
             if (session != null && encryptedDatabase != null) {
                 NotesHomeScreen(
                     database = encryptedDatabase!!,
+                    vault = vault,
                     onLock = { lockVault() },
                     onActivity = { touch() }
                 )
