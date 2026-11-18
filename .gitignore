@@ -1,0 +1,10 @@
+.vs/
+.vscode/
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+*.pfx
+*.cer
+TestResults/

@@ -1,0 +1,61 @@
+name: Windows Desktop Build
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-msix:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Restore and build WinUI application
+        shell: pwsh
+        run: |
+          msbuild src/LunaAvatarStudio/LunaAvatarStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:AppxBundle=Never
+      - name: Locate MSIX package
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem -Path src/LunaAvatarStudio -Recurse -Filter *.msix | Select-Object -First 1
+          if (-not $package) { throw "MSIX package was not produced by the build." }
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Copy-Item $package.FullName artifacts/LUNA-AVATAR-STUDIO.msix
+      - name: Create temporary test signing certificate and sign package
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=LUNA AVATAR STUDIO TEST" -KeyUsage DigitalSignature -FriendlyName "LUNA AVATAR STUDIO CI TEST ONLY" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          Export-Certificate -Cert $cert -FilePath "artifacts/LUNA-AVATAR-STUDIO-TEST.cer" | Out-Null
+          $password = ConvertTo-SecureString ([Guid]::NewGuid().ToString("N")) -AsPlainText -Force
+          $pfxPath = Join-Path (Get-Location) "artifacts/ci-signing.pfx"
+          Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $password | Out-Null
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } | Select-Object -First 1
+          if (-not $signtool) { throw "Windows SDK signtool.exe was not found." }
+          & $signtool.FullName sign /fd SHA256 /f $pfxPath /p (ConvertFrom-SecureString $password -AsPlainText) "artifacts/LUNA-AVATAR-STUDIO.msix"
+          if ($LASTEXITCODE -ne 0) { throw "MSIX signing failed." }
+          Remove-Item $pfxPath -Force
+          Remove-Item $cert.PSPath -Force
+      - name: Prepare installer scripts and bundle
+        shell: pwsh
+        run: |
+          Copy-Item installer/Install-LUNA-AVATAR-STUDIO.ps1 artifacts/
+          Copy-Item installer/Uninstall-LUNA-AVATAR-STUDIO.ps1 artifacts/
+          Copy-Item docs/BUILD_INSTALL.md artifacts/INSTALL-README.md
+          Compress-Archive -Path artifacts/LUNA-AVATAR-STUDIO.msix, artifacts/LUNA-AVATAR-STUDIO-TEST.cer, artifacts/Install-LUNA-AVATAR-STUDIO.ps1, artifacts/Uninstall-LUNA-AVATAR-STUDIO.ps1, artifacts/INSTALL-README.md -DestinationPath artifacts/LUNA-AVATAR-STUDIO-WINDOWS-TEST.zip -Force
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luna-avatar-studio-windows-test-installer
+          path: artifacts/LUNA-AVATAR-STUDIO-WINDOWS-TEST.zip
+          if-no-files-found: error
+          retention-days: 14
