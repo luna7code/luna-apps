@@ -1,36 +1,34 @@
 # LUNA AVATAR STUDIO
 
-Windows desktop MVP — первый рабочий фундамент продукта.
+**Status: engineering foundation 0.1 — not an MVP and not ready to install.**
 
-## Что реализовано в этой версии
-- Нативная оболочка Windows на WinUI 3.
-- Навигация Home / Character / Studio / Settings.
-- Редактирование и сохранение профиля персонажа в локальный JSON.
-- Выбор типа персонажа 2D / 3D и сохранение пути к пользовательскому asset.
-- Отдельная диагностика статуса Motion Capture, Voice Conversion и Live Output.
-- Локальное хранение в `%LOCALAPPDATA%\LunaAvatarStudio`.
-- CI workflow для сборки Windows MSIX и создания тестового подписанного пакета.
+This repository currently contains a WinUI 3 shell, four navigation destinations, and a minimal local character-profile form. It does not yet render avatars or capture camera/microphone data.
 
-## Что намеренно НЕ заявлено как готовое
-Проверенных Motion Capture и Voice Conversion runtime пока нет. Studio показывает их как неподключённые. Камера и микрофон не захватываются, Live Output не отправляет данные в OBS.
+## Implemented in source
+- WinUI 3 navigation: Home / Character / Studio / Settings.
+- Character profile fields: name, 2D/3D selection, optional asset path.
+- Local JSON persistence under %LOCALAPPDATA%/LunaAvatarStudio.
+- Explicit unavailable states for Motion Capture, Voice Conversion and Live Output.
 
-## Требования
-- Windows 10 2004 (build 19041) или новее, x64.
-- Visual Studio 2022 с workload .NET Desktop Development и WinUI tooling.
-- .NET 8 SDK.
+## Not implemented
+- 2D/3D asset import, renderer, animation or avatar preview.
+- Motion Capture, camera capture or pose estimation.
+- Voice Conversion, audio capture or audio routing.
+- OBS output.
+- Hardware detection, performance profiles, diagnostics pipeline.
+- Automated tests and installer validation.
 
-## Сборка
-Откройте `src/LunaAvatarStudio/LunaAvatarStudio.csproj` в Visual Studio 2022 и соберите Release / x64. GitHub Actions собирает MSIX при Pull Request в main.
+## Build status
+The initial Windows CI run failed during XAML compilation. The MSIX packaging, signing and ZIP installer steps were skipped. **There is no verified installer artifact yet.**
 
-## Установка CI-пакета
-Скачайте artifact `luna-avatar-studio-windows-test-installer`, распакуйте и выполните в PowerShell:
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\Install-LUNA-AVATAR-STUDIO.ps1
-```
-Пакет использует временный self-signed сертификат CI. Это тестовая подпись, не публичный сертификат издателя.
+The current project targets .NET 8 and Windows App SDK 1.6; both are out of support as of the audit date (2026-11-19). Upgrade and a clean build are mandatory before merge.
 
-## Документы
-- [MVP scope](docs/PRODUCT_MVP.md)
-- [Build and install](docs/BUILD_INSTALL.md)
+## Engineering decisions
+- [Engineering audit 2026-11-19](docs/ENGINEERING_AUDIT_2026-11-19.md)
+- [ADR-0001: Windows real-time architecture](docs/ADR-0001-WINDOWS-REALTIME-ARCHITECTURE.md)
+- [MVP scope and acceptance sequence](docs/PRODUCT_MVP.md)
+- [Build and install notes](docs/BUILD_INSTALL.md)
 - [Engineering status](docs/ENGINEERING_STATUS.md)
+
+## Release policy
+Do not merge or distribute until CI is green, the MSIX is signed with the intended publisher identity, installation is verified on a clean supported Windows device, and profile persistence/uninstall tests pass. A self-signed CI package is test-only.
